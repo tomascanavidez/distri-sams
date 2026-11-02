@@ -77,6 +77,11 @@ $titulo = $titulo ?? $empresa;
 
 <main class="contenido" id="contenido">
     <?= View::parcial('partials/flash') ?>
+    <?php if (puede('configuracion.editar') && App\Services\Migrador::pendientes()): ?>
+        <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2"><i class="bi bi-database-exclamation"></i>
+            <span class="flex-grow-1">Hay <strong>actualizaciones de la base de datos pendientes</strong>: algunas funciones nuevas no van a andar hasta aplicarlas.</span>
+            <a class="btn btn-sm btn-warning" href="<?= url('/configuracion/migraciones') ?>">Aplicar ahora</a></div>
+    <?php endif; ?>
     <?= $contenido ?>
 </main>
 

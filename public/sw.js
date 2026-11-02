@@ -4,7 +4,7 @@
    - Páginas (HTML): red primero; sin conexión se usa la copia guardada.
    - API: siempre red (las apps guardan sus datos en IndexedDB).
    ===================================================================== */
-var VERSION = 'dt-v1.1.0';
+var VERSION = 'dt-v1.1.1';
 var BASE = self.registration ? new URL(self.registration.scope).pathname.replace(/\/$/, '') : '';
 var ESTATICOS = [
     '/assets/vendor/bootstrap/bootstrap.min.css',
@@ -51,16 +51,16 @@ self.addEventListener('fetch', function (ev) {
 
     if (ruta.indexOf('/api/') === 0) { return; } // la API no se cachea
 
-    // Estáticos y fotos de productos: caché primero, actualizando en segundo plano
+    // Estáticos y fotos de productos: caché primero por URL exacta (incluye ?v=, que cambia con cada versión).
+    // Una versión nueva no está en caché y se baja de la red; sin conexión se usa la última copia de ese archivo.
     if (ruta.indexOf('/assets/') === 0 || ruta.indexOf('/uploads/productos/t_') === 0) {
         ev.respondWith(caches.open(VERSION).then(function (cache) {
-            var clave = claveSinVersion(req);
-            return cache.match(clave).then(function (guardado) {
-                var red = fetch(req).then(function (resp) {
-                    if (resp && resp.ok) { cache.put(clave, resp.clone()); }
+            return cache.match(req.url).then(function (exacto) {
+                if (exacto) { return exacto; }
+                return fetch(req).then(function (resp) {
+                    if (resp && resp.ok) { cache.put(req.url, resp.clone()); cache.put(claveSinVersion(req), resp.clone()); }
                     return resp;
-                }).catch(function () { return guardado; });
-                return guardado || red;
+                }).catch(function () { return cache.match(claveSinVersion(req)); });
             });
         }));
         return;
@@ -89,7 +89,7 @@ self.addEventListener('message', function (ev) {
     ev.waitUntil(caches.open(VERSION).then(function (c) {
         return Promise.all(d.urls.map(function (u) {
             return fetch(u, { credentials: 'same-origin' }).then(function (r) {
-                if (r.ok && !r.redirected) { return c.put(claveSinVersion(new Request(u)), r); }
+                if (r.ok && !r.redirected) { return Promise.all([c.put(u, r.clone()), c.put(claveSinVersion(new Request(u)), r)]); }
             }).catch(function () {});
         }));
     }));

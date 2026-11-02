@@ -34,7 +34,7 @@
             <button class="btn btn-primary btn-lg w-100 mb-2 btn-touch" @click="ir('ruta')"><i class="bi bi-signpost-2"></i> Ver mi ruta de hoy</button>
             <div class="d-flex gap-2 mb-3">
                 <button class="btn btn-outline-primary flex-fill" @click="ir('precios')"><i class="bi bi-tags"></i> Precios</button>
-                <button class="btn btn-outline-primary flex-fill" x-show="datos.puede_crear_clientes" @click="abrirAltaCliente()"><i class="bi bi-person-plus"></i> Nuevo cliente</button>
+                <button class="btn btn-outline-primary flex-fill" @click="abrirAltaCliente()"><i class="bi bi-person-plus"></i> Nuevo cliente</button>
             </div>
             <h2 class="mt-2">Próximas visitas</h2>
             <template x-for="c in rutaHoy().filter(c => !visitado(c)).slice(0, 4)" :key="c.i">
@@ -90,7 +90,7 @@
         <!-- ===================== CLIENTES ===================== -->
         <template x-if="vista === 'clientes'">
         <section>
-            <div class="buscador-movil d-flex gap-2"><input type="search" class="form-control" x-model="qCli" placeholder="Buscar comercio, titular, dirección…" autocomplete="off" aria-label="Buscar cliente"><button type="button" class="btn btn-primary text-nowrap" x-show="datos.puede_crear_clientes" @click="abrirAltaCliente()"><i class="bi bi-person-plus"></i> Nuevo</button></div>
+            <div class="buscador-movil d-flex gap-2"><input type="search" class="form-control" x-model="qCli" placeholder="Buscar comercio, titular, dirección…" autocomplete="off" aria-label="Buscar cliente"><button type="button" class="btn btn-primary text-nowrap" @click="abrirAltaCliente()"><i class="bi bi-person-plus"></i> Nuevo</button></div>
             <div class="app-seccion pt-1">
                 <template x-for="c in clientesFiltrados()" :key="c.i">
                     <div class="tarjeta" @click="elegirCliente(c)" role="button">
@@ -294,7 +294,7 @@
             <div class="d-grid gap-2 lista-acciones-grandes">
                 <button class="btn btn-outline-primary" @click="ir('pedidos')"><i class="bi bi-receipt"></i> Mis pedidos</button>
                 <button class="btn btn-outline-primary" @click="ir('precios')"><i class="bi bi-tags"></i> Productos y precios</button>
-                <button class="btn btn-outline-primary" x-show="datos.puede_crear_clientes" @click="abrirAltaCliente()"><i class="bi bi-person-plus"></i> Nuevo cliente</button>
+                <button class="btn btn-outline-primary" @click="abrirAltaCliente()"><i class="bi bi-person-plus"></i> Nuevo cliente</button>
                 <button class="btn btn-outline-primary" @click="sincronizar()"><i class="bi bi-arrow-repeat"></i> Sincronizar ahora</button>
                 <button class="btn btn-outline-primary" @click="descargar().then(() => DT.aviso('Datos actualizados', 'exito'))" :disabled="!online"><i class="bi bi-cloud-download"></i> Actualizar precios y stock</button>
                 <button class="btn btn-outline-secondary" data-tema-alternar><i class="bi bi-circle-half"></i> Modo claro / oscuro</button>

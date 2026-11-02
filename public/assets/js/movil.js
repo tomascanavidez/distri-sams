@@ -97,6 +97,14 @@
                 // ---------------- Alta de cliente (también sin conexión) ----------------
                 formCliente: null,
                 abrirAltaCliente: function () {
+                    if (this.datos.puede_crear_clientes === undefined) {
+                        DT.aviso('Los datos del celular son de una versión anterior. Conectate y tocá Más › Actualizar precios y stock.', 'aviso');
+                        return;
+                    }
+                    if (!this.datos.puede_crear_clientes) {
+                        DT.aviso('Tu usuario no tiene permiso para dar de alta clientes. Pedile al administrador que habilite "Clientes › Crear" en tu rol.', 'aviso');
+                        return;
+                    }
                     var zona = (this.datos.zonas || [])[0];
                     this.formCliente = {
                         nombre_comercio: '', titular: '', tipo_comercio: 'Kiosco', condicion_iva: 'CF', documento: '', direccion: '', localidad: 'Salta',

@@ -101,7 +101,8 @@
             },
             manejarError: function (e) {
                 if (e && e.estado === 401) { this.sesionVencida = true; return; }
-                if (!e || !e.estado) { this.online = navigator.onLine && false; }
+                if (!e || !e.estado) { this.online = navigator.onLine && false; return; }
+                if (e.estado >= 500) { DT.aviso('El servidor no pudo enviar los datos (error ' + e.estado + '). Avisá a la oficina; mientras tanto se usan los datos guardados.', 'error'); }
             },
             /** Envía la cola al servidor. Las respuestas por operación deciden si se borra o se reintenta. */
             sincronizar: function () {
