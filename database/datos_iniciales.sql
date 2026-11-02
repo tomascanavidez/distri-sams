@@ -1,7 +1,7 @@
 -- Distribuidora Toro - datos iniciales (roles, permisos, parámetros, usuario admin / admin123: cambiar la contraseña al ingresar)
 -- Importar DESPUÉS de database/schema.sql, en una base vacía.
 -- Distribuidora Toro - copia de seguridad
--- Generada: 01/11/2026 19:52:57
+-- Generada: 02/11/2026 19:26:15
 -- Base: distri_toro_generador
 
 SET NAMES utf8mb4;
@@ -24,8 +24,8 @@ INSERT INTO `cajas` (`id`,`nombre`,`activo`) VALUES
 
 
 
-INSERT INTO `clientes` (`id`,`codigo`,`nombre_comercio`,`titular`,`tipo_documento`,`documento`,`condicion_iva`,`tipo_comercio`,`direccion`,`localidad`,`zona_id`,`latitud`,`longitud`,`telefono`,`whatsapp`,`email`,`dias_visita`,`horario_visita`,`dias_entrega`,`horario_entrega`,`lista_precio_id`,`preventista_id`,`limite_credito`,`condicion_pago`,`dias_credito`,`estado`,`orden_ruta`,`observaciones`,`ultima_visita`,`ultima_compra`,`creado_en`,`actualizado_en`) VALUES
-(1,'C0000','Consumidor Final',NULL,'DNI',NULL,'CF',NULL,NULL,'Salta',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,3,NULL,'0.00','contado',0,'activo',0,NULL,NULL,NULL,'2026-11-01 19:52:57',NULL);
+INSERT INTO `clientes` (`id`,`uuid`,`codigo`,`nombre_comercio`,`titular`,`tipo_documento`,`documento`,`condicion_iva`,`tipo_comercio`,`direccion`,`localidad`,`zona_id`,`latitud`,`longitud`,`telefono`,`whatsapp`,`email`,`dias_visita`,`horario_visita`,`dias_entrega`,`horario_entrega`,`lista_precio_id`,`preventista_id`,`limite_credito`,`condicion_pago`,`dias_credito`,`estado`,`orden_ruta`,`observaciones`,`ultima_visita`,`ultima_compra`,`creado_en`,`actualizado_en`) VALUES
+(1,NULL,'C0000','Consumidor Final',NULL,'DNI',NULL,'CF',NULL,NULL,'Salta',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,3,NULL,'0.00','contado',0,'activo',0,NULL,NULL,NULL,'2026-11-02 19:26:15',NULL);
 
 
 
@@ -98,7 +98,8 @@ INSERT INTO `listas_precios` (`id`,`nombre`,`margen_porc`,`redondeo`,`orden`,`ac
 
 
 INSERT INTO `migraciones` (`version`,`nombre`,`aplicada_en`) VALUES
-('001','estructura inicial','2026-11-01 19:52:57');
+('001','estructura inicial','2026-11-02 19:26:15'),
+('002','clientes desde app','2026-11-02 19:26:15');
 
 
 
@@ -346,6 +347,7 @@ INSERT INTO `rol_permiso` (`rol_id`,`permiso_id`) VALUES
 (4,2),
 (4,8),
 (4,12),
+(4,13),
 (4,27),
 (4,28),
 (4,68),
@@ -381,7 +383,7 @@ INSERT INTO `roles` (`id`,`nombre`,`slug`,`descripcion`,`pantalla_inicio`,`es_si
 
 
 INSERT INTO `usuarios` (`id`,`nombre`,`usuario`,`email`,`password_hash`,`rol_id`,`caja_id`,`activo`,`ultimo_login`,`creado_en`,`actualizado_en`) VALUES
-(1,'Administrador','admin',NULL,'$2y$10$3bE2SjTYcrtba6tojvzD.OZAVB54gqSwkmjOSFxQ1vADNd//H1A62',1,1,1,NULL,'2026-11-01 19:52:57',NULL);
+(1,'Administrador','admin',NULL,'$2y$10$aD5ZLkFvMYZeAIYf.A0mL.tM4pFFzMmt/z/jp4ppvtaOsJQPGOPfy',1,1,1,NULL,'2026-11-02 19:26:15',NULL);
 
 
 

@@ -13,6 +13,7 @@ use App\Core\ErrorNegocio;
 use App\Core\Request;
 use App\Core\Validador;
 use App\Services\Migrador;
+use App\Services\PrecioService;
 use App\Support\Imagenes;
 
 final class ConfiguracionController extends Controller
@@ -73,7 +74,8 @@ final class ConfiguracionController extends Controller
             'clientes_cf' => DB::pares("SELECT id, nombre_comercio FROM clientes WHERE condicion_iva = 'CF' ORDER BY id LIMIT 50"),
         ];
         $numeracion = DB::filas('SELECT n.*, pv.numero AS pv_numero, pv.nombre FROM numeracion n JOIN puntos_venta pv ON pv.id = n.punto_venta_id ORDER BY pv.numero, n.tipo');
-        $this->vista('configuracion/index', ['titulo' => 'Empresa y parámetros', 'valores' => Ajustes::todos(), 'opciones' => $opciones, 'numeracion' => $numeracion, 'puede' => Auth::puede('configuracion.editar')]);
+        $listas = DB::filas("SELECT l.*, (SELECT COUNT(*) FROM producto_precios pp WHERE pp.lista_id = l.id AND (pp.modo = 'fijo' OR pp.margen_porc IS NOT NULL)) AS propios FROM listas_precios l WHERE l.activo = 1 ORDER BY l.orden, l.id");
+        $this->vista('configuracion/index', ['titulo' => 'Empresa y parámetros', 'valores' => Ajustes::todos(), 'opciones' => $opciones, 'numeracion' => $numeracion, 'puede' => Auth::puede('configuracion.editar'), 'listas' => $listas]);
     }
 
     public function guardar(): void
@@ -127,6 +129,22 @@ final class ConfiguracionController extends Controller
             Auditoria::registrar('configuracion', 'editar', 'configuracion', null, array_intersect_key($antes, $cambios), $cambios, 'Cambio de parámetros del sistema');
         }
         $this->volver($cambios ? 'Configuración guardada.' : 'No hubo cambios.');
+    }
+
+    /** Márgenes y redondeos por defecto de las listas de precios (con recálculo de todos los productos). */
+    public function guardarListas(): void
+    {
+        $pisar = array_map('intval', (array) Request::input('pisar', []));
+        $productos = 0;
+        foreach ((array) Request::input('margen', []) as $listaId => $margen) {
+            $listaId = (int) $listaId;
+            if (trim((string) $margen) === '') {
+                throw new ErrorNegocio('Indicá el margen de todas las listas.');
+            }
+            $redondeo = parse_decimal($_POST['redondeo'][$listaId] ?? 0);
+            $productos = max($productos, PrecioService::configurarLista($listaId, parse_decimal($margen), $redondeo, in_array($listaId, $pisar, true), 'Cambio de margen por defecto desde Configuración'));
+        }
+        $this->volver($productos ? "Listas actualizadas: se recalcularon los precios de $productos productos." : 'No hubo cambios en las listas.');
     }
 
     public function migraciones(): void

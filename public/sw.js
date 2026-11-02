@@ -4,7 +4,7 @@
    - Páginas (HTML): red primero; sin conexión se usa la copia guardada.
    - API: siempre red (las apps guardan sus datos en IndexedDB).
    ===================================================================== */
-var VERSION = 'dt-v1.0.3';
+var VERSION = 'dt-v1.1.0';
 var BASE = self.registration ? new URL(self.registration.scope).pathname.replace(/\/$/, '') : '';
 var ESTATICOS = [
     '/assets/vendor/bootstrap/bootstrap.min.css',

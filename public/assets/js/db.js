@@ -131,7 +131,8 @@
                             op.estado = res.estado === 'revision' ? 'revision' : (res.estado === 'conflicto' ? 'conflicto' : 'error');
                             op.respuesta = res;
                             if (self.alConfirmar && res.estado === 'revision') { self.alConfirmar(op, res); }
-                            return DTDB.actualizar(op);
+                            // Copia plana: el objeto de la cola es reactivo (Alpine) y IndexedDB no lo puede guardar
+                            return DTDB.actualizar(JSON.parse(JSON.stringify(op)));
                         }));
                     }).then(function () {
                         var ahora = new Date().toISOString();

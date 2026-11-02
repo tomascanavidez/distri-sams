@@ -72,4 +72,37 @@ final class PreciosTest extends Prueba
         $this->igual(1, $n);
         $this->igual(110.0, (float) DB::valor('SELECT costo FROM productos WHERE id = ?', [$p]));
     }
+
+    public function testMargenDeListaGlobalRespetaMargenPropio(): void
+    {
+        $lista = DB::fila('SELECT margen_porc, redondeo FROM listas_precios WHERE id = 3');
+        $comun = $this->producto(100);
+        $propio = $this->producto(100);
+        DB::query("UPDATE producto_precios SET modo = 'margen', margen_porc = 50 WHERE producto_id = ? AND lista_id = 3", [$propio]);
+        PrecioService::recalcularProducto($propio, 'Margen propio');
+        try {
+            PrecioService::configurarLista(3, 40, 1, false, 'Prueba margen global');
+            $this->igual(170.0, PrecioService::precioLista($comun, 3), '100 × 1,40 × 1,21 = 169,40 → 170');
+            $this->igual(182.0, PrecioService::precioLista($propio, 3), 'el margen propio (50 %) se mantiene: 181,50 → 182');
+            PrecioService::configurarLista(3, 40, 1, true, 'Pisar márgenes propios');
+            $this->igual(170.0, PrecioService::precioLista($propio, 3), 'al aplicarlo a todos, toma el de la lista');
+        } finally {
+            PrecioService::configurarLista(3, (float) $lista['margen_porc'], (float) $lista['redondeo'], false, 'Restaurar');
+        }
+        $this->lanza(fn () => PrecioService::configurarLista(3, -5, 1, false, 'x'), 'entre 0 y 1000');
+    }
+
+    public function testFijarMargenPorRubro(): void
+    {
+        $rubro = DB::insertar('rubros', ['nombre' => 'Rubro margen ' . uniqid(), 'activo' => 1]);
+        $p = $this->producto(100);
+        $otro = $this->producto(100);
+        DB::query('UPDATE productos SET rubro_id = ? WHERE id = ?', [$rubro, $p]);
+        $antesOtro = PrecioService::precioLista($otro, 1);
+        $this->igual(1, PrecioService::fijarMargen(['rubro_id' => $rubro], 1, 60, 'Margen por rubro'));
+        $this->igual(194.0, PrecioService::precioLista($p, 1), '100 × 1,60 × 1,21 = 193,60 → 194');
+        $this->igual($antesOtro, PrecioService::precioLista($otro, 1), 'los productos de otros rubros no cambian');
+        PrecioService::fijarMargen(['rubro_id' => $rubro], 1, null, 'Volver al de la lista');
+        $this->igual($antesOtro, PrecioService::precioLista($p, 1), 'sin margen propio vuelve al de la lista');
+    }
 }

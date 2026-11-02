@@ -43,10 +43,17 @@ En la ficha del producto, cuadro **Precios por lista**. Hay listas (Mayorista, K
 
 Los precios son **finales con IVA** y por unidad; el precio del display o la caja se calcula multiplicando.
 
+**Margen por defecto de cada lista**: se cambia en *Administración › Empresa y parámetros › Listas de precios: margen por
+defecto*. Al guardar se recalculan los precios de todos los productos que usan el margen de la lista; los que tienen margen
+propio o precio fijo no se tocan, salvo que marques **Aplicar también a esos productos**.
+
 ### Aumentos de precios
 *Productos › Actualizar precios*: elegí rubro, marca o proveedor, el porcentaje (negativo para bajar) y si se aumenta el
 **costo** (lo habitual cuando el proveedor manda lista nueva) o directamente los **precios** de una lista. Todo queda en
 *Historial de precios*.
+
+Con **Fijar margen** le das un margen propio en una lista a todo un rubro, marca o proveedor (dejalo vacío para que vuelvan a
+usar el margen de la lista).
 
 ### Promociones
 *Productos › Promociones*: "llevando 12 te regalamos 1". Al cargar pedidos se aplican solas (unidades sin cargo).
@@ -214,6 +221,12 @@ Abrila una vez con conexión y agregala a la pantalla de inicio (menú del naveg
   ese cliente compra siempre) y por rubro. Elegí la presentación y tocá **+** / **−**. Abajo siempre ves el **total**. *Ver
   pedido* para revisar y **Confirmar pedido**. *Repetir último* carga el pedido anterior.
 - **Ficha del cliente**: llamar, WhatsApp, mapa, saldo, límite y últimos pedidos.
+- **Nuevo cliente** (en Inicio, Clientes o Más): nombre del comercio, dirección y los datos que tengas (CUIT, teléfono, zona,
+  lista, días de visita, ubicación GPS si estás en el comercio). Funciona **sin señal**: el cliente aparece enseguida en tu
+  lista, podés tomarle el pedido (*Guardar y tomar pedido*) y todo se envía junto al volver la conexión. Queda con pago
+  contado; la oficina ajusta crédito y condiciones. Si el CUIT es inválido se guarda sin él y con una nota para revisar.
+- **Productos y precios** (en Inicio o Más): todo el catálogo con el precio de **cada lista** por unidad y por presentación,
+  y el stock disponible. Se busca por nombre, marca o código y se filtra por rubro. También funciona sin señal.
 - **Más › Mis pedidos**: estado de lo enviado. Si un pedido quedó **para revisión** (por precio o stock) la oficina lo
   revisa: no se pierde.
 

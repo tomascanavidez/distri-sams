@@ -230,6 +230,7 @@ $r->get('/reportes/{clave}', [C\ReportesController::class, 'ver'], 'reportes.ver
 // --- Administración ---
 $r->get('/configuracion', [C\ConfiguracionController::class, 'index'], 'configuracion.ver');
 $r->post('/configuracion', [C\ConfiguracionController::class, 'guardar'], 'configuracion.editar');
+$r->post('/configuracion/listas', [C\ConfiguracionController::class, 'guardarListas'], 'productos.precios');
 $r->get('/configuracion/migraciones', [C\ConfiguracionController::class, 'migraciones'], 'configuracion.editar');
 $r->post('/configuracion/migraciones', [C\ConfiguracionController::class, 'migrar'], 'configuracion.editar');
 $r->get('/usuarios', [C\UsuariosController::class, 'index'], 'usuarios.ver');

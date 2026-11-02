@@ -36,7 +36,7 @@
                     }).then(function (b) {
                         // Si quedó un pedido a medio cargar (se bloqueó el celular, se cerró la app) se recupera
                         if (b && b.carrito && b.carrito.length && self.datos) {
-                            self.cliente = self.datos.clientes.filter(function (c) { return c.i === b.cliente; })[0] || null;
+                            self.cliente = self.clientes().filter(function (c) { return c.i === b.cliente; })[0] || null;
                             if (self.cliente) { self.carrito = b.carrito; self.obs = b.obs || ''; self.vista = 'pedido'; DT.aviso('Se recuperó el pedido que estabas cargando.', 'info'); }
                         }
                     });
@@ -51,12 +51,16 @@
                 alDescargar: function () {
                     if (!this.datos) { return; }
                     if (this.cliente) {
-                        var id = this.cliente.i;
-                        this.cliente = this.datos.clientes.filter(function (c) { return c.i === id; })[0] || this.cliente;
+                        // Un cliente dado de alta en el celular se reemplaza por el real (se busca por su UUID)
+                        var id = this.cliente.i, uuid = this.cliente.uuid;
+                        this.cliente = this.datos.clientes.filter(function (c) { return c.i === id || (uuid && c.u === uuid); })[0] || this.cliente;
                     }
                     if (this.online) { this.cargarPedidosServidor(); }
                 },
                 alConfirmar: function (op, res) {
+                    if (op.tipo === 'cliente' && res.estado === 'ok' && !res.repetido) {
+                        DT.aviso('Cliente ' + (op.cliente || '') + ' dado de alta.' + (res.mensajes && res.mensajes.length ? ' ' + res.mensajes.join(' ') : ''), res.mensajes && res.mensajes.length ? 'aviso' : 'exito');
+                    }
                     if (op.tipo !== 'pedido') { return; }
                     if (res.estado === 'ok') { DT.aviso('Pedido de ' + (op.cliente || '') + ' enviado (N° ' + res.numero + ').', 'exito'); }
                     if (res.estado === 'revision') { DT.aviso('El pedido de ' + (op.cliente || '') + ' quedó para revisión en la oficina.', 'aviso'); }
@@ -73,7 +77,85 @@
                 },
 
                 // ---------------- Clientes y ruta ----------------
-                clientes: function () { return this.datos ? this.datos.clientes : []; },
+                /** Clientes descargados más los dados de alta en el celular que todavía no se enviaron. */
+                clientes: function () {
+                    if (!this.datos) { return []; }
+                    var self = this;
+                    var nuevos = this.cola.filter(function (o) { return o.tipo === 'cliente' && o.estado !== 'revision'; }).map(function (o) { return self.clienteLocal(o.datos); })
+                        .filter(function (n) { return !self.datos.clientes.some(function (c) { return c.u === n.uuid; }); });
+                    return nuevos.concat(this.datos.clientes);
+                },
+                clienteLocal: function (d) {
+                    var z = (this.datos.zonas || []).filter(function (x) { return String(x.i) === String(d.zona_id); })[0];
+                    return {
+                        i: d.temp_id, uuid: d.uuid, c: 'NUEVO', n: d.nombre_comercio, t: d.titular, dir: d.direccion, loc: d.localidad, lat: d.lat, lng: d.lng,
+                        tel: d.telefono, wa: d.whatsapp ? String(d.whatsapp).replace(/\D/g, '') : '', z: z ? z.n : '', l: Number(d.lista_precio_id) || this.datos.lista_defecto,
+                        sal: 0, ven: 0, lim: 0, est: 'activo', cp: 'contado', dv: (d.dias_visita || []).join(','), hv: d.horario_visita, iva: d.condicion_iva,
+                        hab: [], ult: [], peds: [], nuevo: true, _t: DT_normalizar([d.nombre_comercio, d.titular, d.direccion].join(' '))
+                    };
+                },
+                // ---------------- Alta de cliente (también sin conexión) ----------------
+                formCliente: null,
+                abrirAltaCliente: function () {
+                    var zona = (this.datos.zonas || [])[0];
+                    this.formCliente = {
+                        nombre_comercio: '', titular: '', tipo_comercio: 'Kiosco', condicion_iva: 'CF', documento: '', direccion: '', localidad: 'Salta',
+                        zona_id: zona ? zona.i : '', telefono: '', whatsapp: '', lista_precio_id: this.datos.lista_defecto, horario_visita: '',
+                        dias_visita: zona && zona.dv ? zona.dv.split(',').map(Number) : [], observaciones: '', lat: null, lng: null
+                    };
+                    this.ir('nuevoCliente');
+                },
+                cambiarZonaForm: function () {
+                    var f = this.formCliente, z = (this.datos.zonas || []).filter(function (x) { return String(x.i) === String(f.zona_id); })[0];
+                    if (z && z.dv) { f.dias_visita = z.dv.split(',').map(Number); }
+                },
+                alternarDia: function (n) {
+                    var d = this.formCliente.dias_visita, i = d.indexOf(n);
+                    if (i >= 0) { d.splice(i, 1); } else { d.push(n); }
+                },
+                tomarUbicacion: function () {
+                    var self = this;
+                    if (!navigator.geolocation) { DT.aviso('El celular no permite obtener la ubicación.', 'error'); return; }
+                    navigator.geolocation.getCurrentPosition(function (p) {
+                        self.formCliente.lat = Number(p.coords.latitude.toFixed(7)); self.formCliente.lng = Number(p.coords.longitude.toFixed(7));
+                        DT.aviso('Ubicación cargada.', 'exito');
+                    }, function () { DT.aviso('No se pudo obtener la ubicación.', 'error'); }, { enableHighAccuracy: true, timeout: 15000 });
+                },
+                guardarCliente: function (conPedido) {
+                    var self = this, f = this.formCliente;
+                    if (!f.nombre_comercio.trim() || !f.direccion.trim()) { DT.aviso('Completá el nombre del comercio y la dirección.', 'aviso'); return; }
+                    var d = JSON.parse(JSON.stringify(f));
+                    d.uuid = DT_uuid();
+                    d.temp_id = -Date.now();
+                    // La operación usa el mismo UUID que el cliente: así el servidor no lo duplica al reintentar
+                    var op = { uuid: d.uuid, tipo: 'cliente', datos: d, creado: new Date().toISOString(), estado: 'pendiente', cliente: d.nombre_comercio };
+                    DTDB.encolar(op).then(function () { return self.refrescarCola(); }).then(function () {
+                        var c = self.clienteLocal(d);
+                        self.formCliente = null;
+                        DT.aviso('Cliente guardado' + (self.online ? '.' : ' en el celular: se enviará al volver la señal.'), 'exito');
+                        if (self.online) { self.sincronizar(); }
+                        if (conPedido) { self.abrirPedido(c); } else { self.verCliente(c); }
+                    }).catch(function (e) { DT.aviso('No se pudo guardar: ' + e.message, 'error'); });
+                },
+
+                // ---------------- Lista de precios ----------------
+                qPrecios: '',
+                rubroPrecios: '',
+                limitePrecios: 40,
+                productosPrecios: function () {
+                    if (!this.datos) { return []; }
+                    var self = this, q = DT_normalizar(this.qPrecios.trim()), palabras = q.split(/\s+/).filter(Boolean);
+                    return this.datos.productos.filter(function (p) {
+                        if (self.rubroPrecios && String(p.r) !== String(self.rubroPrecios)) { return false; }
+                        if (/^\d{8,}$/.test(q)) { return (p.b || []).indexOf(q) >= 0; }
+                        return palabras.every(function (w) { return p._t.indexOf(w) >= 0; });
+                    });
+                },
+                listasOrdenadas: function () {
+                    var self = this;
+                    return (this.datos.orden_listas || Object.keys(this.datos.listas)).map(function (id) { return { id: id, nombre: self.datos.listas[id] }; });
+                },
+
                 enRutaHoy: function (c) { return String(c.dv || '').split(',').indexOf(String(this.datos.dia)) >= 0; },
                 rutaHoy: function () {
                     var self = this;
@@ -128,7 +210,7 @@
                     var self = this, c = this.cliente;
                     this.hoja = null;
                     this.ubicacion().then(function (u) {
-                        return self.encolar('visita', { cliente_id: c.i, motivo: self.motivoVisita, observaciones: self.obsVisita, lat: u && u.lat, lng: u && u.lng }, { cliente: c.n });
+                        return self.encolar('visita', { cliente_id: c.i, cliente_uuid: c.nuevo ? c.uuid : null, motivo: self.motivoVisita, observaciones: self.obsVisita, lat: u && u.lat, lng: u && u.lng }, { cliente: c.n });
                     }).then(function () { DT.aviso('Visita registrada: ' + c.n, 'exito'); });
                 },
 
@@ -227,7 +309,7 @@
                     var total = this.totalCarrito();
                     this.hoja = null;
                     this.ubicacion().then(function (u) {
-                        return self.encolar('pedido', { cliente_id: c.i, items: items, observaciones: self.obs, lat: u && u.lat, lng: u && u.lng }, { cliente: c.n, total: total, lineas: items.length });
+                        return self.encolar('pedido', { cliente_id: c.i, cliente_uuid: c.nuevo ? c.uuid : null, items: items, observaciones: self.obs, lat: u && u.lat, lng: u && u.lng }, { cliente: c.n, total: total, lineas: items.length });
                     }).then(function (op) {
                         self.ultimoResultado = { cliente: c.n, total: total, online: self.online, uuid: op.uuid };
                         self.carrito = []; self.obs = ''; self.presElegida = {};

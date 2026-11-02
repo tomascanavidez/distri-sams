@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Auditoria;
+use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\DB;
 use App\Core\ErrorNegocio;
@@ -87,6 +88,7 @@ final class ProductosController extends Controller
             'rubros' => DB::pares('SELECT id, nombre FROM rubros WHERE activo = 1 ORDER BY nombre'),
             'marcas' => DB::pares('SELECT id, nombre FROM marcas WHERE activo = 1 ORDER BY nombre'),
             'proveedores' => DB::pares('SELECT id, razon_social FROM proveedores WHERE activo = 1 ORDER BY razon_social'),
+            'precios' => DB::filas('SELECT l.id AS lista_id, l.nombre, l.margen_porc AS margen_lista, pp.modo, pp.margen_porc, pp.precio FROM listas_precios l LEFT JOIN producto_precios pp ON pp.lista_id = l.id AND pp.producto_id = ? WHERE l.activo = 1 ORDER BY l.orden, l.id', [$id ?? 0]),
         ]);
     }
 
@@ -145,6 +147,10 @@ final class ProductosController extends Controller
                 Auditoria::registrar('productos', 'costo', 'producto', $id, ['costo' => $antes['costo']], ['costo' => $costoNuevo], 'Cambio de costo');
             }
             PrecioService::recalcularProducto($id, $antes ? 'Edición del producto' : 'Alta del producto');
+            // Márgenes / precios por lista cargados en el mismo formulario
+            if (isset($_POST['modo']) && Auth::puede('productos.precios')) {
+                $this->aplicarPrecios(DB::fila('SELECT * FROM productos WHERE id = ?', [$id]));
+            }
             if ($f = Request::archivo('foto')) {
                 $nombre = Imagenes::guardarProducto($f, $id);
                 DB::actualizar('productos', ['foto' => $nombre], 'id = :id', ['id' => $id]);
@@ -225,28 +231,40 @@ final class ProductosController extends Controller
     public function guardarPrecios(string $id): void
     {
         $p = $this->buscarOFallar('productos', (int) $id);
-        DB::transaccion(function () use ($p) {
-            $modoRed = (string) \App\Core\Ajustes::get('redondeo_modo', 'arriba');
-            foreach (DB::filas('SELECT * FROM listas_precios WHERE activo = 1') as $l) {
-                $modo = $_POST['modo'][$l['id']] ?? 'margen';
-                $actual = DB::fila('SELECT * FROM producto_precios WHERE producto_id = ? AND lista_id = ?', [$p['id'], $l['id']]);
-                $anterior = $actual ? (float) $actual['precio'] : null;
-                if ($modo === 'fijo') {
-                    $precio = round(parse_decimal($_POST['precio'][$l['id']] ?? 0), 2);
-                    if ($precio <= 0) {
-                        throw new ErrorNegocio('El precio fijo de la lista ' . $l['nombre'] . ' debe ser mayor a cero.');
-                    }
-                    PrecioService::guardarPrecio((int) $p['id'], (int) $l['id'], $precio, $anterior, 'Precio fijo manual', 'fijo', null, true);
-                } else {
-                    $margenTxt = trim((string) ($_POST['margen'][$l['id']] ?? ''));
-                    $margen = $margenTxt === '' ? null : parse_decimal($margenTxt);
-                    $precio = PrecioService::calcularPrecio(PrecioService::costoBase($p), $margen ?? (float) $l['margen_porc'], (float) $p['iva_alicuota'], (float) $p['impuesto_interno'], (float) $l['redondeo'], $modoRed);
-                    PrecioService::guardarPrecio((int) $p['id'], (int) $l['id'], $precio, $anterior, 'Cambio de margen', 'margen', $margen, true);
-                }
-            }
-            Auditoria::registrar('productos', 'precios', 'producto', (int) $p['id'], null, ['listas' => $_POST['modo'] ?? []], 'Actualización de precios de ' . $p['descripcion']);
-        });
+        DB::transaccion(fn () => $this->aplicarPrecios($p));
         $this->volver('Precios actualizados.');
+    }
+
+    /**
+     * Aplica lo enviado en modo[lista], margen[lista] y precio[lista]: por margen (vacío = margen de la lista) o precio fijo.
+     */
+    private function aplicarPrecios(array $p): void
+    {
+        $modoRed = (string) \App\Core\Ajustes::get('redondeo_modo', 'arriba');
+        foreach (DB::filas('SELECT * FROM listas_precios WHERE activo = 1') as $l) {
+            if (!isset($_POST['modo'][$l['id']])) {
+                continue;
+            }
+            $modo = $_POST['modo'][$l['id']] === 'fijo' ? 'fijo' : 'margen';
+            $actual = DB::fila('SELECT * FROM producto_precios WHERE producto_id = ? AND lista_id = ?', [$p['id'], $l['id']]);
+            $anterior = $actual ? (float) $actual['precio'] : null;
+            if ($modo === 'fijo') {
+                $precio = round(parse_decimal($_POST['precio'][$l['id']] ?? 0), 2);
+                if ($precio <= 0) {
+                    throw new ErrorNegocio('El precio fijo de la lista ' . $l['nombre'] . ' debe ser mayor a cero.');
+                }
+                PrecioService::guardarPrecio((int) $p['id'], (int) $l['id'], $precio, $anterior, 'Precio fijo manual', 'fijo', null, true);
+            } else {
+                $margenTxt = trim((string) ($_POST['margen'][$l['id']] ?? ''));
+                $margen = $margenTxt === '' ? null : parse_decimal($margenTxt);
+                if ($margen !== null && ($margen < 0 || $margen > 1000)) {
+                    throw new ErrorNegocio('El margen de la lista ' . $l['nombre'] . ' debe estar entre 0 y 1000 %.');
+                }
+                $precio = PrecioService::calcularPrecio(PrecioService::costoBase($p), $margen ?? (float) $l['margen_porc'], (float) $p['iva_alicuota'], (float) $p['impuesto_interno'], (float) $l['redondeo'], $modoRed);
+                PrecioService::guardarPrecio((int) $p['id'], (int) $l['id'], $precio, $anterior, 'Cambio de margen', 'margen', $margen, true);
+            }
+        }
+        Auditoria::registrar('productos', 'precios', 'producto', (int) $p['id'], null, ['modos' => $_POST['modo'] ?? [], 'margenes' => $_POST['margen'] ?? []], 'Actualización de precios de ' . $p['descripcion']);
     }
 
     public function alternarEstado(string $id): void
@@ -273,9 +291,21 @@ final class ProductosController extends Controller
 
     public function aplicarMasiva(): void
     {
+        $filtros = ['rubro_id' => Request::entero('rubro_id'), 'marca_id' => Request::entero('marca_id'), 'proveedor_id' => Request::entero('proveedor_id')];
+        if (Request::texto('tipo') === 'margen') {
+            // Margen propio para un grupo de productos en una lista (vacío = volver al margen de la lista)
+            $lista = Request::entero('lista_id');
+            if (!$lista) {
+                throw new ErrorNegocio('Para fijar un margen elegí la lista de precios.');
+            }
+            $texto = Request::texto('margen');
+            $margen = $texto === null ? null : parse_decimal($texto);
+            $n = PrecioService::fijarMargen($filtros, $lista, $margen, Request::texto('motivo') ?? ($margen === null ? 'Vuelve al margen de la lista' : 'Margen propio ' . num($margen) . ' %'));
+            Auditoria::registrar('productos', 'fijar_margen', null, null, null, $filtros + ['lista_id' => $lista, 'margen' => $margen ?? 'de la lista'], "Margen fijado en {$n} productos");
+            $this->redirigir('/productos/historial-precios', "Margen aplicado a $n productos.");
+        }
         $tipo = Request::texto('tipo') === 'precio' ? 'precio' : 'costo';
         $porc = Request::decimal('porcentaje');
-        $filtros = ['rubro_id' => Request::entero('rubro_id'), 'marca_id' => Request::entero('marca_id'), 'proveedor_id' => Request::entero('proveedor_id')];
         $motivo = Request::texto('motivo') ?? ('Actualización masiva ' . ($porc > 0 ? '+' : '') . num($porc) . ' %');
         $n = PrecioService::actualizacionMasiva($filtros, $tipo, $porc, Request::entero('lista_id') ?: null, $motivo);
         Auditoria::registrar('productos', 'actualizacion_masiva', null, null, null, $filtros + ['tipo' => $tipo, 'porcentaje' => $porc], "Actualización masiva de {$tipo}s: {$n} productos");

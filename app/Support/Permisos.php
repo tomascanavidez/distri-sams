@@ -69,7 +69,7 @@ final class Permisos
                 'caja.ver', 'caja.crear',
             ]],
             'preventista' => ['Preventista', 'Toma de pedidos en la calle desde el celular', '/movil', [
-                'movil_preventa.ver', 'clientes.ver', 'productos.ver', 'stock.ver', 'pedidos.ver', 'pedidos.crear',
+                'movil_preventa.ver', 'clientes.ver', 'clientes.crear', 'productos.ver', 'stock.ver', 'pedidos.ver', 'pedidos.crear',
             ]],
             'deposito' => ['Depósito', 'Stock, recepción de mercadería y preparación de pedidos', '/stock', [
                 'dashboard.ver', 'productos.ver', 'stock.ver', 'stock.crear', 'stock.exportar', 'pedidos.ver', 'pedidos.editar',

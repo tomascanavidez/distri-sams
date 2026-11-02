@@ -48,6 +48,23 @@ $pres = array_values(array_map(fn ($p) => [
                 </template>
                 <button type="button" class="btn btn-outline-primary btn-touch" @click="pres.push({id:0, nombre:'', factor:'', barras:'', venta:1, compra:1})"><i class="bi bi-plus"></i> Agregar presentación</button>
             </div></div>
+            <?php if (puede('productos.precios')): ?>
+            <div class="card shadow-sm mb-3"><div class="card-body">
+                <div class="card-titulo">Precios por lista <small class="text-body-secondary fw-normal">(finales con IVA, por unidad base)</small></div>
+                <p class="small text-body-secondary">Margen vacío = usa el margen por defecto de la lista (se cambia en Administración › Empresa y parámetros). Con un margen propio, el precio sigue al costo; con precio fijo, no.</p>
+                <?php foreach ($precios as $l): $modo = $l['modo'] ?? 'margen'; ?>
+                    <div class="row g-2 align-items-end border-bottom pb-2 mb-2" x-data="{ modo: '<?= e($modo) ?>' }">
+                        <div class="col-12 col-md-3 fw-semibold"><?= e($l['nombre']) ?><?= $l['precio'] !== null ? '<div class="small fw-normal text-body-secondary">Actual: ' . money($l['precio']) . '</div>' : '' ?></div>
+                        <div class="col-6 col-md-3"><label class="form-label small mb-0">Cálculo</label>
+                            <select class="form-select" name="modo[<?= (int) $l['lista_id'] ?>]" x-model="modo"><option value="margen">Por margen</option><option value="fijo">Precio fijo</option></select></div>
+                        <div class="col-6 col-md-3" x-show="modo === 'margen'"><label class="form-label small mb-0">Margen %</label>
+                            <input class="form-control text-end" name="margen[<?= (int) $l['lista_id'] ?>]" value="<?= $l['margen_porc'] !== null ? e(num($l['margen_porc'])) : '' ?>" placeholder="<?= e(num($l['margen_lista'])) ?> (lista)" inputmode="decimal"></div>
+                        <div class="col-6 col-md-3" x-show="modo === 'fijo'"><label class="form-label small mb-0">Precio fijo $</label>
+                            <input class="form-control text-end" name="precio[<?= (int) $l['lista_id'] ?>]" value="<?= $l['precio'] !== null ? e(num($l['precio'])) : '' ?>" inputmode="decimal"></div>
+                    </div>
+                <?php endforeach; ?>
+            </div></div>
+            <?php endif; ?>
         </div>
 
         <div class="col-lg-4">

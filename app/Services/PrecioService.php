@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Core\Ajustes;
+use App\Core\Auditoria;
 use App\Core\Auth;
 use App\Core\DB;
 use App\Core\ErrorNegocio;
@@ -203,6 +204,81 @@ final class PrecioService
                         self::guardarPrecio($id, (int) $fila['lista_id'], $nuevo, (float) $fila['precio'], $motivo, null, $nuevoMargen, true);
                     }
                 }
+            }
+        });
+        return count($ids);
+    }
+
+    /**
+     * Cambia el margen y/o redondeo por defecto de una lista y recalcula los precios de todos los productos
+     * que usan el margen de la lista. Si $pisarPropios es true, además se quitan los márgenes propios de
+     * los productos y los precios fijos de esa lista (todos pasan a usar el margen de la lista).
+     * Devuelve la cantidad de productos recalculados.
+     */
+    public static function configurarLista(int $listaId, float $margen, float $redondeo, bool $pisarPropios, string $motivo): int
+    {
+        $lista = DB::fila('SELECT * FROM listas_precios WHERE id = ?', [$listaId]);
+        if (!$lista) {
+            throw new ErrorNegocio('Lista de precios inexistente.');
+        }
+        if ($margen < 0 || $margen > 1000) {
+            throw new ErrorNegocio('El margen de la lista "' . $lista['nombre'] . '" debe estar entre 0 y 1000 %.');
+        }
+        $cambio = abs((float) $lista['margen_porc'] - $margen) > 0.001 || abs((float) $lista['redondeo'] - $redondeo) > 0.001;
+        if (!$cambio && !$pisarPropios) {
+            return 0;
+        }
+        return DB::transaccion(function () use ($listaId, $lista, $margen, $redondeo, $pisarPropios, $motivo) {
+            DB::actualizar('listas_precios', ['margen_porc' => $margen, 'redondeo' => $redondeo], 'id = :id', ['id' => $listaId]);
+            if ($pisarPropios) {
+                DB::query("UPDATE producto_precios SET modo = 'margen', margen_porc = NULL WHERE lista_id = ?", [$listaId]);
+            }
+            Auditoria::registrar('productos', 'lista_precios', 'lista_precios', $listaId,
+                ['margen_porc' => $lista['margen_porc'], 'redondeo' => $lista['redondeo']],
+                ['margen_porc' => $margen, 'redondeo' => $redondeo, 'pisar_propios' => $pisarPropios ? 'sí' : 'no'], $motivo);
+            return self::recalcularTodos($motivo);
+        });
+    }
+
+    /** Recalcula los precios por margen de todos los productos activos. Devuelve cuántos se procesaron. */
+    public static function recalcularTodos(string $motivo): int
+    {
+        $ids = DB::columna('SELECT id FROM productos WHERE activo = 1');
+        foreach ($ids as $id) {
+            self::recalcularProducto((int) $id, $motivo);
+        }
+        return count($ids);
+    }
+
+    /**
+     * Fija un margen propio (o vuelve al de la lista con $margen = null) para un grupo de productos en una lista.
+     * Los productos con precio fijo en esa lista pasan a calcularse por margen.
+     */
+    public static function fijarMargen(array $filtros, int $listaId, ?float $margen, string $motivo): int
+    {
+        if (!DB::valor('SELECT id FROM listas_precios WHERE id = ?', [$listaId])) {
+            throw new ErrorNegocio('Elegí la lista de precios.');
+        }
+        if ($margen !== null && ($margen < 0 || $margen > 1000)) {
+            throw new ErrorNegocio('El margen debe estar entre 0 y 1000 %.');
+        }
+        $where = ['activo = 1'];
+        $params = [];
+        foreach (['rubro_id', 'marca_id', 'proveedor_id'] as $campo) {
+            if (!empty($filtros[$campo])) {
+                $where[] = "$campo = ?";
+                $params[] = (int) $filtros[$campo];
+            }
+        }
+        $ids = DB::columna('SELECT id FROM productos WHERE ' . implode(' AND ', $where), $params);
+        if (!$ids) {
+            throw new ErrorNegocio('No hay productos que coincidan con el filtro.');
+        }
+        DB::transaccion(function () use ($ids, $listaId, $margen, $motivo) {
+            foreach ($ids as $id) {
+                self::recalcularProducto((int) $id, $motivo); // asegura que exista el renglón de la lista
+                DB::query("UPDATE producto_precios SET modo = 'margen', margen_porc = ? WHERE producto_id = ? AND lista_id = ?", [$margen, (int) $id, $listaId]);
+                self::recalcularProducto((int) $id, $motivo);
             }
         });
         return count($ids);

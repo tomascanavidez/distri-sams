@@ -28,6 +28,7 @@ distribuidora mayorista chica de Salta.
 | 14 | Al recibir mercadería se actualizan costos y se recalculan precios por margen (desactivable). Toda variación queda en `precios_historial`. | Evita vender por debajo del costo nuevo. |
 | 15 | Letra de comprobante: empresa RI → cliente RI = **A**, resto = **B**; empresa monotributista = **C**. Factura B muestra "IVA contenido" (Ley 27.743). | Normativa vigente. |
 | 16 | Bonificaciones "12+1" como **promociones por producto** (unidades sin cargo), aplicadas automáticamente al cargar pedidos y editables por línea. | Práctica común de las marcas. |
+| 51 | El margen por defecto de cada lista se edita en Configuración y recalcula al instante los precios por margen. Los márgenes propios y precios fijos se respetan salvo que se pida pisarlos. También se puede fijar un margen propio por producto (ficha) o por rubro/marca/proveedor (Actualizar precios › Fijar margen). | Pedido del cliente: cambiar márgenes de forma global o por producto. |
 
 ## Stock
 
@@ -74,6 +75,8 @@ distribuidora mayorista chica de Salta.
 | 40 | La ubicación GPS de visitas y pedidos es opcional y nunca demora más de 2,5 s. | Un permiso sin responder no puede trabar la venta. |
 | 41 | Sesión de preventistas y choferes: 12 h de inactividad (oficina: 60 min). Si vence, la cola queda guardada y se envía al volver a ingresar. | Trabajan todo el día con el celular. |
 | 42 | Escáner con **html5-qrcode** (carga diferida sólo al usar la cámara). Requiere HTTPS (Let's Encrypt gratis en Ferozo). | Liviano para gama baja. |
+| 52 | El preventista puede **dar de alta clientes desde la app, también sin señal**: el cliente lleva un UUID generado en el celular (idempotente), usa un id temporal negativo hasta sincronizar y los pedidos/visitas que se le carguen viajan con ese UUID. Se crea con pago contado y sin límite; un CUIT inválido no frena el alta (se guarda en observaciones). Permiso `clientes.crear` (migración 002). | Pedido del cliente; en la calle no siempre hay señal. |
+| 53 | La app del preventista descarga los precios de **todas** las listas y muestra una vista "Productos y precios". | Pedido del cliente: consultar precios de cualquier lista. |
 
 ## Seguridad y operación
 

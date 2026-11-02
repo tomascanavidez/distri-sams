@@ -152,9 +152,7 @@ final class CatalogoController extends Controller
                 DB::query("UPDATE depositos SET nombre = CONCAT('Camión ', ?) WHERE vehiculo_id = ?", [$fila['patente'], $id]);
             }
             if (($def['despues'] ?? '') === 'recalcularLista' && $antes && ((float) $antes['margen_porc'] !== (float) $fila['margen_porc'] || (float) $antes['redondeo'] !== (float) $fila['redondeo'])) {
-                foreach (DB::columna('SELECT id FROM productos WHERE activo = 1') as $pid) {
-                    PrecioService::recalcularProducto((int) $pid, 'Cambio de margen/redondeo de la lista ' . $fila['nombre']);
-                }
+                PrecioService::recalcularTodos('Cambio de margen/redondeo de la lista ' . $fila['nombre']);
             }
             if (($def['despues'] ?? '') === 'recalcularLista' && !$antes) {
                 foreach (DB::columna('SELECT id FROM productos') as $pid) {

@@ -27,10 +27,15 @@ final class View
         if (!is_file($archivo)) {
             throw new \RuntimeException("Vista no encontrada: $plantilla");
         }
-        extract($datos, EXTR_SKIP);
+        // Se incluye dentro de un closure aislado: así las variables de la vista (por ejemplo "$datos"
+        // de los formularios) no chocan con las variables internas de este método.
+        $incluir = static function (string $__archivo, array $__vars): void {
+            extract($__vars);
+            include $__archivo;
+        };
         ob_start();
         try {
-            include $archivo;
+            $incluir($archivo, $datos);
         } catch (\Throwable $e) {
             ob_end_clean();
             throw $e;

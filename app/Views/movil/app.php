@@ -3,7 +3,7 @@
     <header class="app-cabecera">
         <button class="btn btn-topbar" type="button" x-show="vista !== 'inicio'" @click="history.back()" aria-label="Volver"><i class="bi bi-arrow-left"></i></button>
         <img src="<?= asset('assets/img/logo.svg') ?>" alt="" width="30" height="30" x-show="vista === 'inicio'" style="background:#fff;border-radius:50%;padding:2px">
-        <h1 x-text="{ inicio: 'Preventa', ruta: 'Mi ruta de hoy', clientes: modoElegir ? 'Elegí el cliente' : 'Clientes', cliente: cliente ? cliente.n : 'Cliente', pedido: cliente ? cliente.n : 'Pedido', pedidos: 'Mis pedidos', mas: 'Más opciones' }[vista]"></h1>
+        <h1 x-text="{ inicio: 'Preventa', ruta: 'Mi ruta de hoy', clientes: modoElegir ? 'Elegí el cliente' : 'Clientes', cliente: cliente ? cliente.n : 'Cliente', pedido: cliente ? cliente.n : 'Pedido', pedidos: 'Mis pedidos', mas: 'Más opciones', nuevoCliente: 'Nuevo cliente', precios: 'Productos y precios' }[vista]"></h1>
         <button class="btn btn-topbar" type="button" @click="sincronizar()" aria-label="Sincronizar"><i class="bi" :class="sincronizando ? 'bi-arrow-repeat' : 'bi-cloud-arrow-up'"></i></button>
     </header>
     <button type="button" class="barra-estado" :class="estadoConexion().clase" @click="sesionVencida ? location.href = DT.url('/login') : sincronizar()">
@@ -31,7 +31,11 @@
                 <div class="kpi-movil"><div class="e">Vendido hoy</div><div class="v fs-5" x-text="DT.dinero(r.vendido)"></div></div>
                 <div class="kpi-movil"><div class="e">Sin enviar</div><div class="v" :class="pendientes() ? 'text-warning' : 'text-success'" x-text="pendientes()"></div></div>
             </div>
-            <button class="btn btn-primary btn-lg w-100 mb-3 btn-touch" @click="ir('ruta')"><i class="bi bi-signpost-2"></i> Ver mi ruta de hoy</button>
+            <button class="btn btn-primary btn-lg w-100 mb-2 btn-touch" @click="ir('ruta')"><i class="bi bi-signpost-2"></i> Ver mi ruta de hoy</button>
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-outline-primary flex-fill" @click="ir('precios')"><i class="bi bi-tags"></i> Precios</button>
+                <button class="btn btn-outline-primary flex-fill" x-show="datos.puede_crear_clientes" @click="abrirAltaCliente()"><i class="bi bi-person-plus"></i> Nuevo cliente</button>
+            </div>
             <h2 class="mt-2">Próximas visitas</h2>
             <template x-for="c in rutaHoy().filter(c => !visitado(c)).slice(0, 4)" :key="c.i">
                 <div class="tarjeta">
@@ -86,7 +90,7 @@
         <!-- ===================== CLIENTES ===================== -->
         <template x-if="vista === 'clientes'">
         <section>
-            <div class="buscador-movil"><input type="search" class="form-control" x-model="qCli" placeholder="Buscar comercio, titular, dirección…" autocomplete="off" aria-label="Buscar cliente"></div>
+            <div class="buscador-movil d-flex gap-2"><input type="search" class="form-control" x-model="qCli" placeholder="Buscar comercio, titular, dirección…" autocomplete="off" aria-label="Buscar cliente"><button type="button" class="btn btn-primary text-nowrap" x-show="datos.puede_crear_clientes" @click="abrirAltaCliente()"><i class="bi bi-person-plus"></i> Nuevo</button></div>
             <div class="app-seccion pt-1">
                 <template x-for="c in clientesFiltrados()" :key="c.i">
                     <div class="tarjeta" @click="elegirCliente(c)" role="button">
@@ -210,11 +214,87 @@
         </section>
         </template>
 
+        <!-- ===================== NUEVO CLIENTE ===================== -->
+        <template x-if="vista === 'nuevoCliente' && formCliente">
+        <section class="app-seccion">
+            <form @submit.prevent="guardarCliente(false)" novalidate>
+                <div class="mb-2"><label class="form-label" for="nc-nombre">Nombre del comercio *</label><input id="nc-nombre" class="form-control form-control-lg" x-model="formCliente.nombre_comercio" maxlength="150" required autocomplete="off"></div>
+                <div class="mb-2"><label class="form-label" for="nc-titular">Titular / encargado</label><input id="nc-titular" class="form-control" x-model="formCliente.titular" maxlength="150" autocomplete="off"></div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="form-label" for="nc-tipo">Tipo</label><select id="nc-tipo" class="form-select" x-model="formCliente.tipo_comercio"><template x-for="t in datos.tipos_comercio"><option :value="t" x-text="t" :selected="t === formCliente.tipo_comercio"></option></template></select></div>
+                    <div class="col-6"><label class="form-label" for="nc-iva">Condición IVA</label><select id="nc-iva" class="form-select" x-model="formCliente.condicion_iva"><template x-for="(t, k) in datos.condiciones_iva"><option :value="k" x-text="t" :selected="k === formCliente.condicion_iva"></option></template></select></div>
+                </div>
+                <div class="mb-2"><label class="form-label" for="nc-doc">CUIT / DNI</label><input id="nc-doc" class="form-control" x-model="formCliente.documento" inputmode="numeric" maxlength="13" placeholder="Opcional"></div>
+                <div class="mb-2"><label class="form-label" for="nc-dir">Dirección *</label><input id="nc-dir" class="form-control" x-model="formCliente.direccion" maxlength="200" required autocomplete="off"></div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="form-label" for="nc-loc">Localidad</label><input id="nc-loc" class="form-control" x-model="formCliente.localidad" maxlength="100"></div>
+                    <div class="col-6"><label class="form-label" for="nc-zona">Zona</label><select id="nc-zona" class="form-select" x-model="formCliente.zona_id" @change="cambiarZonaForm()"><option value="">Sin zona</option><template x-for="z in datos.zonas" :key="z.i"><option :value="z.i" x-text="z.n" :selected="String(z.i) === String(formCliente.zona_id)"></option></template></select></div>
+                </div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6"><label class="form-label" for="nc-tel">Teléfono</label><input id="nc-tel" class="form-control" type="tel" x-model="formCliente.telefono" maxlength="50"></div>
+                    <div class="col-6"><label class="form-label" for="nc-wa">WhatsApp</label><input id="nc-wa" class="form-control" type="tel" x-model="formCliente.whatsapp" maxlength="50"></div>
+                </div>
+                <div class="mb-2"><label class="form-label" for="nc-lista">Lista de precios</label><select id="nc-lista" class="form-select" x-model="formCliente.lista_precio_id"><template x-for="l in listasOrdenadas()" :key="l.id"><option :value="l.id" x-text="l.nombre" :selected="String(l.id) === String(formCliente.lista_precio_id)"></option></template></select></div>
+                <div class="mb-2">
+                    <span class="form-label d-block">Días de visita</span>
+                    <div class="d-flex gap-1 flex-wrap">
+                        <template x-for="(d, k) in ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']" :key="k">
+                            <button type="button" class="btn btn-sm" :class="formCliente.dias_visita.indexOf(k + 1) >= 0 ? 'btn-primary' : 'btn-outline-secondary'" @click="alternarDia(k + 1)" x-text="d"></button>
+                        </template>
+                    </div>
+                </div>
+                <div class="mb-2"><label class="form-label" for="nc-hora">Horario de visita</label><input id="nc-hora" class="form-control" x-model="formCliente.horario_visita" maxlength="50" placeholder="Ej.: 9 a 12"></div>
+                <div class="mb-2"><label class="form-label" for="nc-obs">Observaciones</label><textarea id="nc-obs" class="form-control" rows="2" x-model="formCliente.observaciones" maxlength="255"></textarea></div>
+                <button type="button" class="btn btn-outline-secondary w-100 mb-3" @click="tomarUbicacion()"><i class="bi bi-crosshair"></i> <span x-text="formCliente.lat ? 'Ubicación cargada ✓' : 'Usar mi ubicación actual (estoy en el comercio)'"></span></button>
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-primary btn-lg btn-touch" @click="guardarCliente(true)"><i class="bi bi-cart-plus"></i> Guardar y tomar pedido</button>
+                    <button type="submit" class="btn btn-outline-primary btn-touch"><i class="bi bi-check-lg"></i> Solo guardar</button>
+                </div>
+                <p class="small text-body-secondary mt-2 mb-0">Se da de alta con pago contado. La oficina puede cambiar las condiciones después.</p>
+            </form>
+        </section>
+        </template>
+
+        <!-- ===================== PRODUCTOS Y PRECIOS ===================== -->
+        <template x-if="vista === 'precios'">
+        <section>
+            <div class="buscador-movil d-flex gap-2">
+                <input type="search" class="form-control" x-model="qPrecios" @input="limitePrecios = 40" placeholder="Buscar producto, marca o código…" autocomplete="off" aria-label="Buscar producto">
+                <select class="form-select" style="max-width:40%" x-model="rubroPrecios" @change="limitePrecios = 40" aria-label="Rubro"><option value="">Todos</option><template x-for="r in datos.rubros" :key="r.id"><option :value="r.id" x-text="r.nombre"></option></template></select>
+            </div>
+            <div class="app-seccion pt-1">
+                <p class="small text-body-secondary mb-2" x-text="productosPrecios().length + ' productos · precios finales con IVA'"></p>
+                <template x-for="p in productosPrecios().slice(0, limitePrecios)" :key="p.i">
+                    <div class="tarjeta">
+                        <div class="d-flex justify-content-between gap-2">
+                            <div class="min-w-0"><div class="tarjeta-titulo" x-text="p.d"></div><div class="tarjeta-sub" x-text="[p.m, p.c].filter(Boolean).join(' · ')"></div></div>
+                            <span class="chip text-nowrap" :class="p.s > 0 ? 'chip-ok' : 'chip-mal'" x-text="'Stock ' + DT.cant(p.s)"></span>
+                        </div>
+                        <div class="table-responsive mt-1">
+                            <table class="table table-sm mb-0 small">
+                                <thead><tr><th>Lista</th><template x-for="pr in p.pr" :key="pr[0]"><th class="text-end" x-text="pr[1] + (pr[2] != 1 ? ' x' + DT.cant(pr[2]) : '')"></th></template></tr></thead>
+                                <tbody>
+                                    <template x-for="l in listasOrdenadas()" :key="l.id">
+                                        <tr x-show="p.p[l.id]"><td x-text="l.nombre"></td><template x-for="pr in p.pr" :key="pr[0]"><td class="text-end text-nowrap" x-text="DT.dinero((p.p[l.id] || 0) * pr[2])"></td></template></tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </template>
+                <button class="btn btn-outline-secondary w-100" x-show="productosPrecios().length > limitePrecios" @click="limitePrecios += 40">Ver más</button>
+                <template x-if="!productosPrecios().length"><div class="vacio-movil"><i class="bi bi-search"></i>No hay productos con esa búsqueda.</div></template>
+            </div>
+        </section>
+        </template>
+
         <!-- ===================== MÁS ===================== -->
         <template x-if="vista === 'mas'">
         <section class="app-seccion">
             <div class="d-grid gap-2 lista-acciones-grandes">
                 <button class="btn btn-outline-primary" @click="ir('pedidos')"><i class="bi bi-receipt"></i> Mis pedidos</button>
+                <button class="btn btn-outline-primary" @click="ir('precios')"><i class="bi bi-tags"></i> Productos y precios</button>
+                <button class="btn btn-outline-primary" x-show="datos.puede_crear_clientes" @click="abrirAltaCliente()"><i class="bi bi-person-plus"></i> Nuevo cliente</button>
                 <button class="btn btn-outline-primary" @click="sincronizar()"><i class="bi bi-arrow-repeat"></i> Sincronizar ahora</button>
                 <button class="btn btn-outline-primary" @click="descargar().then(() => DT.aviso('Datos actualizados', 'exito'))" :disabled="!online"><i class="bi bi-cloud-download"></i> Actualizar precios y stock</button>
                 <button class="btn btn-outline-secondary" data-tema-alternar><i class="bi bi-circle-half"></i> Modo claro / oscuro</button>

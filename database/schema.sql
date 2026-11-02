@@ -464,6 +464,7 @@ CREATE TABLE IF NOT EXISTS zonas (
 
 CREATE TABLE IF NOT EXISTS clientes (
   id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  uuid CHAR(36) NULL COMMENT 'Identificador generado en el celular (alta desde la app)',
   codigo VARCHAR(20) NOT NULL,
   nombre_comercio VARCHAR(150) NOT NULL,
   titular VARCHAR(150) NULL,
@@ -497,6 +498,7 @@ CREATE TABLE IF NOT EXISTS clientes (
   actualizado_en DATETIME NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uk_clientes_codigo (codigo),
+  UNIQUE KEY uk_clientes_uuid (uuid),
   KEY idx_clientes_nombre (nombre_comercio),
   KEY idx_clientes_doc (documento),
   KEY idx_clientes_zona (zona_id),

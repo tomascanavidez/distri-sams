@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Core\Ajustes;
+use App\Core\Auditoria;
 use App\Core\Auth;
 use App\Core\Controller;
 use App\Core\Csrf;
@@ -12,6 +13,7 @@ use App\Core\DB;
 use App\Core\ErrorNegocio;
 use App\Core\Log;
 use App\Core\Request;
+use App\Core\Validador;
 use App\Services\ClienteService;
 use App\Services\PedidoService;
 use App\Services\PrecioService;
@@ -53,7 +55,7 @@ final class MovilController extends Controller
     {
         [$where, $p] = $this->filtroClientes();
         $clientes = DB::filas(
-            "SELECT c.id, c.codigo, c.nombre_comercio, c.titular, c.direccion, c.localidad, c.latitud, c.longitud, c.telefono, c.whatsapp,
+            "SELECT c.id, c.uuid, c.codigo, c.nombre_comercio, c.titular, c.direccion, c.localidad, c.latitud, c.longitud, c.telefono, c.whatsapp,
                     c.lista_precio_id, c.limite_credito, c.estado, c.condicion_pago, c.dias_visita, c.horario_visita, c.ultima_visita, c.ultima_compra,
                     c.orden_ruta, c.condicion_iva, z.nombre AS zona, z.dias_visita AS zona_dias,
                     (SELECT COALESCE(SUM(importe), 0) FROM cc_clientes WHERE cliente_id = c.id) AS saldo,
@@ -94,10 +96,14 @@ final class MovilController extends Controller
             }
         }
 
-        $listas = array_values(array_unique(array_filter(array_map(fn ($c) => (int) $c['lista_precio_id'], $clientes))));
-        if (!$listas) {
-            $listas = [(int) DB::valor('SELECT id FROM listas_precios WHERE activo = 1 ORDER BY orden LIMIT 1')];
-        }
+        // Todas las listas activas: el catálogo de la app muestra todos los precios y un cliente nuevo puede tener cualquiera
+        $listas = array_map('intval', DB::columna('SELECT id FROM listas_precios WHERE activo = 1 ORDER BY orden, id')) ?: [0];
+        $usoListas = array_count_values(array_filter(array_map(fn ($c) => (int) $c['lista_precio_id'], $clientes)));
+        arsort($usoListas);
+        $prev = Auth::usuario()['preventista_id'] ?? null;
+        $zonas = $prev
+            ? DB::filas('SELECT id, nombre, dias_visita FROM zonas WHERE activo = 1 AND preventista_id = ? ORDER BY nombre', [$prev])
+            : DB::filas('SELECT id, nombre, dias_visita FROM zonas WHERE activo = 1 ORDER BY nombre');
         $precios = [];
         foreach (DB::filas('SELECT producto_id, lista_id, precio FROM producto_precios WHERE lista_id IN (' . DB::marcadores($listas) . ')', $listas) as $pp) {
             $precios[$pp['producto_id']][$pp['lista_id']] = (float) $pp['precio'];
@@ -131,13 +137,19 @@ final class MovilController extends Controller
             'ok' => true, 'version' => ahora(), 'hoy' => hoy(), 'dia' => (int) date('N', strtotime(hoy())),
             'usuario' => Auth::usuario()['nombre'],
             'empresa' => ajuste('empresa_nombre'),
-            'listas' => DB::pares('SELECT id, nombre FROM listas_precios WHERE id IN (' . DB::marcadores($listas) . ')', $listas),
+            'listas' => DB::pares('SELECT id, nombre FROM listas_precios WHERE activo = 1 ORDER BY orden, id'),
+            'orden_listas' => $listas,
+            'lista_defecto' => (int) (array_key_first($usoListas) ?? $listas[0]),
+            'zonas' => array_map(fn ($z) => ['i' => (int) $z['id'], 'n' => $z['nombre'], 'dv' => $z['dias_visita']], $zonas),
+            'puede_crear_clientes' => Auth::puede('clientes.crear'),
+            'condiciones_iva' => condiciones_iva(),
+            'tipos_comercio' => ClientesController::TIPOS_COMERCIO,
             'rubros' => DB::filas('SELECT id, nombre FROM rubros WHERE activo = 1 ORDER BY nombre'),
             'fotos' => url('/uploads/productos/'),
             'credito_modo' => Ajustes::get('credito_modo'),
             'productos' => $productos,
             'clientes' => array_map(fn ($c) => [
-                'i' => (int) $c['id'], 'c' => $c['codigo'], 'n' => $c['nombre_comercio'], 't' => $c['titular'], 'dir' => $c['direccion'], 'loc' => $c['localidad'],
+                'i' => (int) $c['id'], 'u' => $c['uuid'], 'c' => $c['codigo'], 'n' => $c['nombre_comercio'], 't' => $c['titular'], 'dir' => $c['direccion'], 'loc' => $c['localidad'],
                 'lat' => $c['latitud'] ? (float) $c['latitud'] : null, 'lng' => $c['longitud'] ? (float) $c['longitud'] : null,
                 'tel' => $c['telefono'], 'wa' => whatsapp_numero($c['whatsapp'] ?: $c['telefono']), 'z' => $c['zona'], 'l' => (int) $c['lista_precio_id'],
                 'sal' => round((float) $c['saldo'], 2), 'ven' => round((float) $c['vencido'], 2), 'lim' => (float) $c['limite_credito'], 'est' => $c['estado'],
@@ -178,6 +190,7 @@ final class MovilController extends Controller
             try {
                 $resultados[] = match ($item['tipo'] ?? '') {
                     'pedido' => $this->sincronizarPedido($uuid, (array) ($item['datos'] ?? []), (string) ($item['creado'] ?? '')),
+                    'cliente' => $this->sincronizarCliente($uuid, (array) ($item['datos'] ?? []), (string) ($item['creado'] ?? '')),
                     'visita' => $this->sincronizarVisita($uuid, (array) ($item['datos'] ?? []), (string) ($item['creado'] ?? '')),
                     default => ['uuid' => $uuid, 'estado' => 'descartado', 'mensaje' => 'Tipo desconocido.'],
                 };
@@ -199,14 +212,89 @@ final class MovilController extends Controller
         return date('Y-m-d H:i:s', $t);
     }
 
+    /**
+     * Cliente de una operación: por id, o por el UUID del alta hecha en el celular (id provisorio negativo).
+     */
+    private function resolverCliente(array $d): ?array
+    {
+        $id = (int) ($d['cliente_id'] ?? 0);
+        if ($id > 0 && ($c = DB::fila('SELECT * FROM clientes WHERE id = ?', [$id]))) {
+            return $c;
+        }
+        if (es_uuid($d['cliente_uuid'] ?? null)) {
+            return DB::fila('SELECT * FROM clientes WHERE uuid = ?', [$d['cliente_uuid']]);
+        }
+        return null;
+    }
+
+    /** Si el cliente era nuevo y todavía no llegó su alta, se reintenta; si no, se descarta. */
+    private function clienteNoEncontrado(string $uuid, array $d): array
+    {
+        return es_uuid($d['cliente_uuid'] ?? null)
+            ? ['uuid' => $uuid, 'estado' => 'error', 'mensaje' => 'Falta registrar el cliente nuevo: se reintentará.']
+            : ['uuid' => $uuid, 'estado' => 'descartado', 'mensaje' => 'El cliente no existe.'];
+    }
+
+    /**
+     * Alta de cliente desde el celular. Idempotente por UUID. Nunca se pierde: si un dato no es válido
+     * (por ejemplo un CUIT mal escrito) se guarda igual y se deja la observación para que la oficina lo revise.
+     */
+    private function sincronizarCliente(string $uuid, array $d, string $creado): array
+    {
+        if ($id = DB::valor('SELECT id FROM clientes WHERE uuid = ?', [$uuid])) {
+            return ['uuid' => $uuid, 'estado' => 'ok', 'cliente_id' => (int) $id, 'repetido' => true];
+        }
+        if (!Auth::puede('clientes.crear')) {
+            return ['uuid' => $uuid, 'estado' => 'descartado', 'mensaje' => 'Tu usuario no tiene permiso para dar de alta clientes.'];
+        }
+        $txt = fn (string $k, int $max) => ($v = trim((string) ($d[$k] ?? ''))) === '' ? null : mb_substr($v, 0, $max);
+        $nombre = $txt('nombre_comercio', 150);
+        if (!$nombre) {
+            return ['uuid' => $uuid, 'estado' => 'descartado', 'mensaje' => 'Falta el nombre del comercio.'];
+        }
+        $notas = [];
+        $iva = in_array($d['condicion_iva'] ?? '', ['RI', 'MONO', 'EX', 'CF'], true) ? $d['condicion_iva'] : 'CF';
+        $doc = preg_replace('/[^\d\-]/', '', (string) ($d['documento'] ?? '')) ?: null;
+        $tipoDoc = $doc && strlen(preg_replace('/\D/', '', $doc)) === 11 ? 'CUIT' : 'DNI';
+        if ($doc && $tipoDoc === 'CUIT' && !Validador::cuitValido($doc)) {
+            $notas[] = "CUIT informado inválido: $doc (verificar)";
+            $doc = null;
+        }
+        if ($iva === 'RI' && (!$doc || $tipoDoc !== 'CUIT')) {
+            $notas[] = 'Indicado como Responsable Inscripto sin CUIT válido: se cargó como Consumidor Final.';
+            $iva = 'CF';
+        }
+        $prev = Auth::usuario()['preventista_id'] ?? null;
+        $zona = (int) ($d['zona_id'] ?? 0);
+        $zona = $zona && DB::valor('SELECT id FROM zonas WHERE id = ?', [$zona]) ? $zona : null;
+        $lista = (int) ($d['lista_precio_id'] ?? 0);
+        $lista = $lista && DB::valor('SELECT id FROM listas_precios WHERE id = ? AND activo = 1', [$lista]) ? $lista : null;
+        $dias = implode(',', array_filter(array_map('intval', (array) ($d['dias_visita'] ?? [])), fn ($x) => $x >= 1 && $x <= 7));
+        $obs = trim(implode(" \n", array_filter([$txt('observaciones', 500), $notas ? implode(' ', $notas) : null, 'Alta desde la app por ' . (Auth::usuario()['nombre'] ?? '') . '.'])));
+        $id = DB::transaccion(function () use ($uuid, $nombre, $txt, $iva, $doc, $tipoDoc, $zona, $lista, $prev, $dias, $obs, $d, $creado) {
+            $id = DB::insertar('clientes', [
+                'uuid' => $uuid, 'codigo' => ClienteService::proximoCodigo(), 'nombre_comercio' => $nombre, 'titular' => $txt('titular', 150),
+                'tipo_documento' => $tipoDoc, 'documento' => $doc, 'condicion_iva' => $iva, 'tipo_comercio' => $txt('tipo_comercio', 30),
+                'direccion' => $txt('direccion', 200), 'localidad' => $txt('localidad', 100) ?? 'Salta', 'zona_id' => $zona,
+                'latitud' => is_numeric($d['lat'] ?? null) ? (float) $d['lat'] : null, 'longitud' => is_numeric($d['lng'] ?? null) ? (float) $d['lng'] : null,
+                'telefono' => $txt('telefono', 50), 'whatsapp' => $txt('whatsapp', 30), 'dias_visita' => $dias ?: null, 'horario_visita' => $txt('horario_visita', 60),
+                'lista_precio_id' => $lista, 'preventista_id' => $prev, 'limite_credito' => 0, 'condicion_pago' => 'contado', 'dias_credito' => 0,
+                'estado' => 'activo', 'observaciones' => $obs, 'creado_en' => $this->fechaDispositivo($creado),
+            ]);
+            Auditoria::registrar('clientes', 'crear', 'cliente', $id, null, ['nombre_comercio' => $nombre, 'origen' => 'app'], 'Alta de cliente desde la app');
+            return $id;
+        });
+        return ['uuid' => $uuid, 'estado' => 'ok', 'cliente_id' => $id, 'mensajes' => $notas];
+    }
+
     private function sincronizarVisita(string $uuid, array $d, string $creado): array
     {
         if (DB::valor('SELECT id FROM visitas WHERE uuid = ?', [$uuid])) {
             return ['uuid' => $uuid, 'estado' => 'ok', 'repetido' => true];
         }
-        $cliente = (int) ($d['cliente_id'] ?? 0);
-        if (!DB::valor('SELECT id FROM clientes WHERE id = ?', [$cliente])) {
-            return ['uuid' => $uuid, 'estado' => 'descartado', 'mensaje' => 'El cliente no existe.'];
+        $cliente = (int) ($this->resolverCliente($d)['id'] ?? 0);
+        if (!$cliente) {
+            return $this->clienteNoEncontrado($uuid, $d);
         }
         $fecha = $this->fechaDispositivo($creado);
         DB::insertar('visitas', [
@@ -225,9 +313,9 @@ final class MovilController extends Controller
         if ($existente) {
             return ['uuid' => $uuid, 'estado' => (int) $existente['revision_requerida'] && $existente['estado'] === 'borrador' ? 'revision' : 'ok', 'numero' => (int) $existente['numero'], 'repetido' => true];
         }
-        $cliente = DB::fila('SELECT * FROM clientes WHERE id = ?', [(int) ($d['cliente_id'] ?? 0)]);
+        $cliente = $this->resolverCliente($d);
         if (!$cliente) {
-            return ['uuid' => $uuid, 'estado' => 'descartado', 'mensaje' => 'El cliente no existe.'];
+            return $this->clienteNoEncontrado($uuid, $d);
         }
         $problemas = [];
         if ($cliente['estado'] !== 'activo') {

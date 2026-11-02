@@ -47,3 +47,27 @@
     </div>
     <?php if ($puede): ?><div class="barra-acciones-fija"><button class="btn btn-primary btn-touch"><i class="bi bi-check-lg"></i> Guardar configuración</button></div><?php endif; ?>
 </form>
+
+<div class="card shadow-sm mt-4" id="listas-precios"><div class="card-body">
+    <div class="card-titulo"><i class="bi bi-tags"></i> Listas de precios: margen por defecto</div>
+    <p class="small text-body-secondary">Margen sobre el costo que usan todos los productos que no tienen un margen propio en esa lista. Al guardar se recalculan los precios.
+        Para un producto puntual, cargá su margen en <em>Productos › Editar</em> (o en su ficha); para un grupo (rubro, marca o proveedor), en
+        <a href="<?= url('/productos/actualizacion-masiva') ?>">Actualizar precios › Fijar margen</a>.</p>
+    <?php $puedePrecios = puede('productos.precios'); ?>
+    <form method="post" action="<?= url('/configuracion/listas') ?>" data-confirmar="¿Guardar los márgenes? Se recalculan los precios de todos los productos que usan el margen de la lista." data-boton="Guardar y recalcular">
+        <?= csrf_campo() ?>
+        <div class="table-responsive"><table class="table align-middle tabla-cards mb-2">
+            <thead><tr><th>Lista</th><th>Margen por defecto %</th><th>Redondeo</th><th>Productos con margen propio o precio fijo</th></tr></thead>
+            <tbody><?php foreach ($listas as $l): ?>
+                <tr>
+                    <td class="td-titulo"><?= e($l['nombre']) ?></td>
+                    <td data-label="Margen %"><div class="input-group" style="max-width:160px"><input class="form-control text-end" name="margen[<?= (int) $l['id'] ?>]" value="<?= e(num($l['margen_porc'])) ?>" inputmode="decimal" required <?= $puedePrecios ? '' : 'disabled' ?> aria-label="Margen de <?= e($l['nombre']) ?>"><span class="input-group-text">%</span></div></td>
+                    <td data-label="Redondeo"><select class="form-select" name="redondeo[<?= (int) $l['id'] ?>]" style="max-width:190px" <?= $puedePrecios ? '' : 'disabled' ?> aria-label="Redondeo de <?= e($l['nombre']) ?>"><?= opciones(['0.00' => 'Sin redondeo', '0.10' => 'A $ 0,10', '0.50' => 'A $ 0,50', '1.00' => 'A $ 1', '5.00' => 'A $ 5', '10.00' => 'A $ 10', '50.00' => 'A $ 50', '100.00' => 'A $ 100'], number_format((float) $l['redondeo'], 2, '.', '')) ?></select></td>
+                    <td data-label="Propios"><?= (int) $l['propios'] ?>
+                        <?php if ($puedePrecios && (int) $l['propios'] > 0): ?><div class="form-check mt-1"><input class="form-check-input" type="checkbox" name="pisar[]" value="<?= (int) $l['id'] ?>" id="pisar<?= (int) $l['id'] ?>"><label class="form-check-label small" for="pisar<?= (int) $l['id'] ?>">Aplicar también a esos productos (quita márgenes propios y precios fijos de esta lista)</label></div><?php endif; ?></td>
+                </tr>
+            <?php endforeach; ?></tbody>
+        </table></div>
+        <?php if ($puedePrecios): ?><button class="btn btn-primary btn-touch"><i class="bi bi-arrow-repeat"></i> Guardar márgenes y recalcular</button><?php endif; ?>
+    </form>
+</div></div>
