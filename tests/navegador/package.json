@@ -1,0 +1,7 @@
+{
+  "name": "distri-toro-pruebas-navegador",
+  "private": true,
+  "description": "Pruebas de punta a punta en navegador (viewport de celular y corte de conexión). Sólo para desarrollo: no se sube al hosting.",
+  "scripts": { "test": "node todas.js" },
+  "dependencies": { "puppeteer-core": "^23.0.0" }
+}

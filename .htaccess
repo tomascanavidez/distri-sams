@@ -1,0 +1,17 @@
+# Distribuidora Toro - raíz del proyecto
+# Se usa cuando NO se puede apuntar el dominio a la carpeta /public
+# (por ejemplo, al subir todo el proyecto dentro de public_html).
+Options -Indexes -MultiViews
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # Bloquea archivos y carpetas ocultos (.git, .github, .gitignore, .env), salvo .well-known (SSL)
+    RewriteRule (^|/)\.(?!well-known/) - [F,L]
+    # Bloquea el acceso directo a carpetas internas
+    RewriteRule ^(app|config|cron|database|docs|storage|tests|tools|vendor)(/|$) - [F,L]
+    RewriteRule ^(\.env|composer\.(json|lock)|.*\.md)$ - [F,L]
+    # Reenvía todo a /public
+    RewriteRule ^$ public/ [L]
+    RewriteCond %{REQUEST_URI} !/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>

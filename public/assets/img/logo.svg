@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Distribuidora Toro">
+  <circle cx="256" cy="256" r="248" fill="#9e1b1b"/>
+  <circle cx="256" cy="256" r="226" fill="none" stroke="#fff" stroke-width="10" opacity=".35"/>
+  <!-- cuernos -->
+  <path d="M92 150c10 70 60 112 124 118l-8-38c-44-6-80-34-96-80z" fill="#fff"/>
+  <path d="M420 150c-10 70-60 112-124 118l8-38c44-6 80-34 96-80z" fill="#fff"/>
+  <!-- cabeza -->
+  <path d="M182 220c0-18 30-30 74-30s74 12 74 30l-10 120c-4 46-30 76-64 76s-60-30-64-76z" fill="#fff"/>
+  <!-- orejas -->
+  <path d="M184 232c-28-4-48 6-58 22 22 10 44 10 62 2z" fill="#fff"/>
+  <path d="M328 232c28-4 48 6 58 22-22 10-44 10-62 2z" fill="#fff"/>
+  <!-- ojos y hocico -->
+  <ellipse cx="222" cy="272" rx="11" ry="13" fill="#9e1b1b"/>
+  <ellipse cx="290" cy="272" rx="11" ry="13" fill="#9e1b1b"/>
+  <ellipse cx="256" cy="372" rx="44" ry="30" fill="#f3c6c6"/>
+  <ellipse cx="240" cy="372" rx="7" ry="9" fill="#9e1b1b"/>
+  <ellipse cx="272" cy="372" rx="7" ry="9" fill="#9e1b1b"/>
+</svg>

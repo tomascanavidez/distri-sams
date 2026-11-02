@@ -1,0 +1,30 @@
+# --- Configuración local (la genera el instalador en cada servidor; tiene claves) ---
+/config/config.php
+
+# --- Datos de cada instalación (no van al repositorio) ---
+/storage/*
+!/storage/.htaccess
+!/storage/logs/
+!/storage/backups/
+!/storage/sessions/
+!/storage/cache/
+/storage/logs/*
+/storage/backups/*
+/storage/sessions/*
+/storage/cache/*
+!/storage/*/.gitkeep
+
+# Fotos de productos y logo subidos desde el sistema
+/public/uploads/productos/*
+/public/uploads/empresa/*
+!/public/uploads/*/.gitkeep
+
+# --- Desarrollo ---
+/tests/navegador/node_modules/
+/tests/navegador/package-lock.json
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

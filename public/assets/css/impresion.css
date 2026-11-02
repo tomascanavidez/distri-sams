@@ -1,0 +1,44 @@
+/* Estilos para comprobantes, hojas de ruta y reportes imprimibles */
+body { background: #e9ecef; color: #000; font-size: 13px; }
+.barra-imprimir { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; padding: .6rem; background: #343a40; }
+.barra-imprimir .btn { min-height: 44px; }
+.hoja { background: #fff; max-width: 210mm; margin: 1rem auto; padding: 12mm; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+.hoja-horizontal .hoja { max-width: 297mm; }
+.tabla-impresion { font-size: 12px; }
+.tabla-impresion th { background: #f1f3f5 !important; }
+.comp-cabecera { border: 1.5px solid #000; display: grid; grid-template-columns: 1fr 70px 1fr; }
+.comp-cabecera > div { padding: 8px 10px; }
+.comp-letra { border-left: 1.5px solid #000; border-right: 1.5px solid #000; text-align: center; }
+.comp-letra .letra { font-size: 42px; font-weight: 800; line-height: 1; }
+.comp-letra small { font-size: 9px; display: block; }
+.comp-logo { max-height: 60px; max-width: 160px; }
+.comp-cliente { border: 1.5px solid #000; border-top: 0; padding: 6px 10px; }
+.comp-items { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.comp-items th { border-bottom: 1.5px solid #000; font-size: 11px; text-align: left; padding: 3px 4px; }
+.comp-items td { padding: 3px 4px; border-bottom: 1px dotted #bbb; font-size: 12px; vertical-align: top; }
+.comp-items .n { text-align: right; white-space: nowrap; }
+.comp-totales { margin-left: auto; width: 300px; margin-top: 8px; }
+.comp-totales td { padding: 2px 4px; }
+.comp-totales .total td { font-size: 16px; font-weight: 800; border-top: 1.5px solid #000; }
+.comp-pie { margin-top: 14px; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; }
+.firma { margin-top: 40px; border-top: 1px solid #000; width: 220px; text-align: center; font-size: 11px; }
+.salto-pagina { page-break-after: always; }
+
+/* Ticket 80 mm */
+body.ticket { background: #e9ecef; font-family: "Courier New", monospace; font-size: 12px; }
+body.ticket .hoja { width: 80mm; max-width: 80mm; padding: 3mm; margin: 1rem auto; }
+.ticket .centro { text-align: center; }
+.ticket hr { border: 0; border-top: 1px dashed #000; margin: 4px 0; opacity: 1; }
+.ticket table { width: 100%; }
+.ticket td { padding: 0; vertical-align: top; }
+.ticket .n { text-align: right; white-space: nowrap; }
+.ticket .grande { font-size: 16px; font-weight: 800; }
+
+@media print {
+    body, body.ticket { background: #fff; }
+    .no-print { display: none !important; }
+    .hoja { box-shadow: none; margin: 0; padding: 0; max-width: none; }
+    body.ticket .hoja { width: 72mm; }
+    @page { margin: 10mm; }
+    body.ticket { margin: 0; }
+}
