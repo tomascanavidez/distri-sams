@@ -31,6 +31,18 @@ $num = fn ($t) => in_array($t, ['money', 'num', 'cant', 'entero', 'porc'], true)
                 <div class="autocompletar-lista" x-show="abierto && resultados.length" @click.outside="abierto = false" x-cloak><template x-for="(r, i) in resultados" :key="r.id"><button type="button" :class="{ activo: i === indice }" @click="elegir(r)" x-text="r.texto"></button></template></div>
             </div></div>
     <?php endif; ?>
+    <?php if (in_array('lista_precios', $filtros, true)): $elegidas = array_map('intval', (array) ($_GET['listas'] ?? array_keys($opciones['listas']))); ?>
+        <div class="col-12"><span class="form-label d-block">Listas a mostrar</span><div class="d-flex flex-wrap gap-2">
+            <?php foreach ($opciones['listas'] as $id => $nombre): ?>
+                <input type="checkbox" class="btn-check" id="lista_<?= (int) $id ?>" name="listas[]" value="<?= (int) $id ?>" autocomplete="off"<?= in_array((int) $id, $elegidas, true) ? ' checked' : '' ?>>
+                <label class="btn btn-outline-primary btn-touch" for="lista_<?= (int) $id ?>"><?= e($nombre) ?></label>
+            <?php endforeach; ?>
+        </div><small class="text-body-secondary">Sin ninguna marcada se muestran todas.</small></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="rubro_id">Rubro</label><select class="form-select" id="rubro_id" name="rubro_id"><option value="">Todos</option><?= opciones($opciones['rubros'], $_GET['rubro_id'] ?? '') ?></select></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="marca_id">Marca</label><select class="form-select" id="marca_id" name="marca_id"><option value="">Todas</option><?= opciones($opciones['marcas'], $_GET['marca_id'] ?? '') ?></select></div>
+        <div class="col-6 col-md-3"><label class="form-label" for="presentaciones">Precios por</label><select class="form-select" id="presentaciones" name="presentaciones"><?= opciones(App\Support\Reportes::PRESENTACIONES_LISTA, $_GET['presentaciones'] ?? 'todas') ?></select></div>
+        <div class="col-6 col-md-2"><div class="form-check mt-md-4"><input class="form-check-input" type="checkbox" id="con_stock" name="con_stock" value="1"<?= !empty($_GET['con_stock']) ? ' checked' : '' ?>><label class="form-check-label" for="con_stock">Sólo con stock</label></div></div>
+    <?php endif; ?>
     <div class="col-6 col-md-2"><button class="btn btn-primary w-100 btn-touch"><i class="bi bi-funnel"></i> Ver</button></div>
 </form>
 <?php endif; ?>

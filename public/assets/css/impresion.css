@@ -6,6 +6,8 @@ body { background: #e9ecef; color: #000; font-size: 13px; }
 .hoja-horizontal .hoja { max-width: 297mm; }
 .tabla-impresion { font-size: 12px; }
 .tabla-impresion th { background: #f1f3f5 !important; }
+.tabla-impresion .fila-grupo th { background: #f5ebeb !important; font-size: 13px; padding-top: 8px; break-after: avoid; page-break-after: avoid; }
+.tabla-impresion thead { display: table-header-group; }
 .comp-cabecera { border: 1.5px solid #000; display: grid; grid-template-columns: 1fr 70px 1fr; }
 .comp-cabecera > div { padding: 8px 10px; }
 .comp-letra { border-left: 1.5px solid #000; border-right: 1.5px solid #000; text-align: center; }

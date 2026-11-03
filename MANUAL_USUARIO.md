@@ -262,6 +262,11 @@ rentabilidad y margen bruto, comisiones, compras, stock valorizado, kardex, prod
 corrientes de clientes y proveedores con antigüedad, **Libro IVA Ventas** y **Compras**, rendiciones de reparto, entregas
 rechazadas y motivos, flujo de caja y **resultado del mes** (ventas − costo de mercadería − gastos).
 
+**Lista de precios** (grupo *Precios*): para entregar a los clientes. Marcá qué listas querés que aparezcan (por ejemplo sólo
+*Kiosco*, o *Mayorista* y *Minorista*; sin ninguna marcada salen todas), filtrá por rubro o marca, elegí si mostrar todas las
+presentaciones, sólo la habitual o sólo el precio por unidad, y si querés únicamente productos con stock. Con
+**PDF / Imprimir** sale agrupada por rubro, con los precios finales con IVA y la fecha de vigencia.
+
 ---
 
 ## 15. Administración

@@ -1,6 +1,6 @@
 <div class="encabezado"><h1>Reportes</h1></div>
 <div class="row g-3">
-<?php $iconos = ['Ventas' => 'graph-up', 'Compras' => 'bag', 'Stock' => 'boxes', 'Cuentas corrientes' => 'journal-text', 'Impuestos' => 'bank2', 'Reparto' => 'truck', 'Finanzas' => 'cash-stack'];
+<?php $iconos = ['Ventas' => 'graph-up', 'Precios' => 'tags', 'Compras' => 'bag', 'Stock' => 'boxes', 'Cuentas corrientes' => 'journal-text', 'Impuestos' => 'bank2', 'Reparto' => 'truck', 'Finanzas' => 'cash-stack'];
 foreach ($grupos as $grupo => $reportes): ?>
     <div class="col-md-6 col-xl-4"><div class="card shadow-sm h-100"><div class="card-body">
         <div class="card-titulo"><i class="bi bi-<?= $iconos[$grupo] ?? 'file-earmark-bar-graph' ?> text-primary"></i> <?= e($grupo) ?></div>

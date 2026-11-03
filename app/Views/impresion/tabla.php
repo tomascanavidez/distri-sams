@@ -11,10 +11,15 @@
         </div>
     </div>
     <table class="table table-sm tabla-impresion">
-        <thead><tr><?php foreach ($columnas as [$etq, $tipo]): ?><th class="<?= in_array($tipo, ['money', 'num', 'cant', 'entero', 'porc'], true) ? 'text-end' : '' ?>"><?= e($etq) ?></th><?php endforeach; ?></tr></thead>
+        <?php $cols = ($grupo ?? null) ? array_diff_key($columnas, [$grupo => 1]) : $columnas; ?>
+        <thead><tr><?php foreach ($cols as [$etq, $tipo]): ?><th class="<?= in_array($tipo, ['money', 'num', 'cant', 'entero', 'porc'], true) ? 'text-end' : '' ?>"><?= e($etq) ?></th><?php endforeach; ?></tr></thead>
         <tbody>
+        <?php $grupo = $grupo ?? null; $cols = $grupo ? array_diff_key($columnas, [$grupo => 1]) : $columnas; $actual = null; ?>
         <?php foreach ($filas as $f): ?>
-            <tr><?php foreach ($columnas as $k => [, $tipo]): ?><td class="<?= in_array($tipo, ['money', 'num', 'cant', 'entero', 'porc'], true) ? 'text-end text-nowrap' : '' ?>"><?= e(Exportador::formatear($f[$k] ?? '', $tipo)) ?></td><?php endforeach; ?></tr>
+            <?php if ($grupo && ($f[$grupo] ?? '') !== $actual): $actual = $f[$grupo] ?? ''; ?>
+                <tr class="fila-grupo"><th colspan="<?= count($cols) ?>"><?= e($actual) ?></th></tr>
+            <?php endif; ?>
+            <tr><?php foreach ($cols as $k => [, $tipo]): ?><td class="<?= in_array($tipo, ['money', 'num', 'cant', 'entero', 'porc'], true) ? 'text-end text-nowrap' : '' ?>"><?= e(Exportador::formatear($f[$k] ?? '', $tipo)) ?></td><?php endforeach; ?></tr>
         <?php endforeach; ?>
         <?php if (!$filas): ?><tr><td colspan="<?= count($columnas) ?>" class="text-center">Sin datos para los filtros elegidos.</td></tr><?php endif; ?>
         </tbody>

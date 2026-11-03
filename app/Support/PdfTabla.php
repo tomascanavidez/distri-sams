@@ -20,8 +20,13 @@ final class PdfTabla extends \FPDF
         private string $subtitulo,
         private array $columnas,
         private array $filas,
-        private ?array $totales
+        private ?array $totales,
+        private ?string $grupo = null
     ) {
+        if ($grupo !== null && isset($columnas[$grupo])) {
+            unset($this->columnas[$grupo]); // se muestra como subtítulo, no como columna
+        }
+        $columnas = $this->columnas;
         $orientacion = count($columnas) > 6 ? 'L' : 'P';
         parent::__construct($orientacion, 'mm', 'A4');
         $this->SetMargins(10, 10, 10);
@@ -101,7 +106,18 @@ final class PdfTabla extends \FPDF
 
     private function imprimirFilas(array $filas, bool $total): void
     {
+        $actual = null;
         foreach ($filas as $f) {
+            if ($this->grupo !== null && !$total && ($f[$this->grupo] ?? '') !== $actual) {
+                $actual = $f[$this->grupo] ?? '';
+                if ($this->GetY() + 12 > $this->PageBreakTrigger) {
+                    $this->AddPage();
+                }
+                $this->SetFont('Helvetica', 'B', 8.5);
+                $this->SetFillColor(245, 235, 235);
+                $this->Cell(0, 6, self::t((string) $actual), 0, 1, 'L', true);
+                $this->SetFont('Helvetica', '', 7.5);
+            }
             $i = 0;
             foreach ($this->columnas as $k => [, $tipo]) {
                 $texto = self::t(Exportador::formatear($f[$k] ?? '', $tipo));

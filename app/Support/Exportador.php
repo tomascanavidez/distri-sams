@@ -13,7 +13,8 @@ use App\Core\View;
  */
 final class Exportador
 {
-    public static function enviar(string $formato, string $titulo, array $columnas, array $filas, ?array $totales = null, string $subtitulo = ''): void
+    /** $grupo: columna por la que se agrupa con subtítulos en PDF e impresión (en CSV/Excel queda como columna). */
+    public static function enviar(string $formato, string $titulo, array $columnas, array $filas, ?array $totales = null, string $subtitulo = '', ?string $grupo = null): void
     {
         $nombre = self::nombreArchivo($titulo);
         switch ($formato) {
@@ -28,11 +29,11 @@ final class Exportador
                 \App\Core\Response::descarga(self::csv($columnas, $filas, $totales), $nombre . '.csv', 'text/csv; charset=utf-8');
                 return;
             case 'pdf':
-                $pdf = new PdfTabla($titulo, $subtitulo, $columnas, $filas, $totales);
+                $pdf = new PdfTabla($titulo, $subtitulo, $columnas, $filas, $totales, $grupo);
                 \App\Core\Response::descarga($pdf->generar(), $nombre . '.pdf', 'application/pdf');
                 return;
             default:
-                echo View::render('impresion/tabla', compact('titulo', 'subtitulo', 'columnas', 'filas', 'totales') + [
+                echo View::render('impresion/tabla', compact('titulo', 'subtitulo', 'columnas', 'filas', 'totales', 'grupo') + [
                     'urlPdf' => url(\App\Core\Request::ruta()) . '?' . http_build_query(array_merge($_GET, ['formato' => 'pdf'])),
                 ], 'layouts/impresion');
         }

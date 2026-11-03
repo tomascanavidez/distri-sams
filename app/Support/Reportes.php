@@ -23,6 +23,7 @@ final class Reportes
             'cobranzas' => ['Cobranzas por forma de pago', 'Ventas', 'Cobros recibidos por forma de pago (efectivo, transferencia, Mercado Pago, tarjeta, cheque).', ['fechas', 'agrupar_cobranzas']],
             'rentabilidad' => ['Rentabilidad / margen bruto', 'Ventas', 'Venta neta sin impuestos menos costo de la mercadería vendida.', ['fechas', 'agrupar_rentabilidad']],
             'comisiones' => ['Comisiones de preventistas', 'Ventas', 'Ventas netas, cobranzas y comisión calculada por preventista.', ['fechas']],
+            'lista_precios' => ['Lista de precios', 'Precios', 'Lista para clientes en PDF o impresa: elegí qué listas mostrar (Mayorista, Kiosco, Minorista…), rubro, marca y presentaciones.', ['lista_precios']],
             'compras' => ['Compras', 'Compras', 'Facturas de proveedores por proveedor o por mes.', ['fechas', 'agrupar_compras']],
             'stock_valorizado' => ['Stock valorizado', 'Stock', 'Existencias valorizadas a costo, por producto o por rubro.', ['agrupar_stock']],
             'kardex' => ['Kardex por producto', 'Stock', 'Movimientos de un producto con saldo.', ['fechas', 'producto']],
@@ -341,6 +342,9 @@ final class Reportes
                 $res['nota'] = 'Saldo actual en cajas abiertas: ' . money($saldoCajas) . ' · en bancos y billeteras: ' . money($saldoBancos);
                 return $res;
 
+            case 'lista_precios':
+                return self::listaPrecios($f);
+
             case 'resultado':
                 $meses = max(1, min(24, (int) ($f['meses'] ?? 6)));
                 $filas = [];
@@ -362,6 +366,89 @@ final class Reportes
                 return $res;
         }
         throw new ErrorNegocio('Reporte inexistente.');
+    }
+
+    /** Opciones de la presentación a mostrar en la lista de precios. */
+    public const PRESENTACIONES_LISTA = ['todas' => 'Todas las presentaciones de venta', 'pred' => 'Presentación habitual de venta', 'base' => 'Sólo por unidad'];
+
+    /**
+     * Lista de precios para clientes: una columna por cada lista elegida (todas si no se elige ninguna),
+     * precios finales con IVA por presentación (precio unitario × unidades), agrupada por rubro.
+     */
+    private static function listaPrecios(array $f): array
+    {
+        $listas = DB::pares('SELECT id, nombre FROM listas_precios WHERE activo = 1 ORDER BY orden, id');
+        $elegidas = array_values(array_intersect(array_keys($listas), array_map('intval', (array) ($f['listas'] ?? []))));
+        if (!$elegidas) {
+            $elegidas = array_keys($listas);
+        }
+        $modo = isset(self::PRESENTACIONES_LISTA[$f['presentaciones'] ?? '']) ? $f['presentaciones'] : 'todas';
+
+        $where = ['p.activo = 1'];
+        $params = [];
+        foreach (['rubro_id', 'marca_id'] as $campo) {
+            if (!empty($f[$campo])) {
+                $where[] = "p.$campo = ?";
+                $params[] = (int) $f[$campo];
+            }
+        }
+        if (!empty($f['con_stock'])) {
+            $where[] = "(SELECT COALESCE(SUM(s.cantidad - s.reservado), 0) FROM stock s JOIN depositos d ON d.id = s.deposito_id WHERE s.producto_id = p.id AND d.tipo = 'deposito') > 0";
+        }
+        $productos = DB::filas(
+            "SELECT p.id, p.codigo, p.descripcion, p.unidad_base, COALESCE(r.nombre, 'Sin rubro') AS rubro, m.nombre AS marca
+             FROM productos p LEFT JOIN rubros r ON r.id = p.rubro_id LEFT JOIN marcas m ON m.id = p.marca_id
+             WHERE " . implode(' AND ', $where) . ' ORDER BY rubro, p.descripcion',
+            $params
+        );
+        $ids = array_map(fn ($p) => (int) $p['id'], $productos) ?: [0];
+        $precios = [];
+        foreach (DB::filas('SELECT producto_id, lista_id, precio FROM producto_precios WHERE producto_id IN (' . DB::marcadores($ids) . ') AND lista_id IN (' . DB::marcadores($elegidas) . ')', array_merge($ids, $elegidas)) as $x) {
+            $precios[(int) $x['producto_id']][(int) $x['lista_id']] = (float) $x['precio'];
+        }
+        $presentaciones = [];
+        if ($modo !== 'base') {
+            foreach (DB::filas('SELECT producto_id, nombre, factor, predeterminada_venta FROM producto_presentaciones WHERE activo = 1 AND es_venta = 1 AND producto_id IN (' . DB::marcadores($ids) . ') ORDER BY factor', $ids) as $x) {
+                $presentaciones[(int) $x['producto_id']][] = $x;
+            }
+        }
+
+        $filas = [];
+        foreach ($productos as $p) {
+            $unitarios = $precios[(int) $p['id']] ?? [];
+            if (!array_filter($unitarios)) {
+                continue; // sin precio en ninguna de las listas elegidas
+            }
+            $pres = $presentaciones[(int) $p['id']] ?? [];
+            if ($modo === 'pred') {
+                $pres = array_values(array_filter($pres, fn ($x) => (int) $x['predeterminada_venta'] === 1)) ?: array_slice($pres, 0, 1);
+            }
+            if (!$pres) {
+                $pres = [['nombre' => $p['unidad_base'], 'factor' => 1]];
+            }
+            foreach ($pres as $x) {
+                $factor = (float) $x['factor'];
+                $fila = [
+                    'codigo' => $p['codigo'], 'descripcion' => $p['descripcion'], 'marca' => $p['marca'], 'rubro' => $p['rubro'],
+                    'presentacion' => $x['nombre'] . (abs($factor - 1) > 0.0001 ? ' x ' . cant($factor) : ''),
+                ];
+                foreach ($elegidas as $l) {
+                    $fila['l' . $l] = isset($unitarios[$l]) && $unitarios[$l] > 0 ? round($unitarios[$l] * $factor, 2) : null;
+                }
+                $filas[] = $fila;
+            }
+        }
+
+        $columnas = ['codigo' => ['Código', 'texto'], 'descripcion' => ['Producto', 'texto'], 'marca' => ['Marca', 'texto'], 'rubro' => ['Rubro', 'texto'], 'presentacion' => ['Presentación', 'texto']];
+        foreach ($elegidas as $l) {
+            $columnas['l' . $l] = [$listas[$l], 'money'];
+        }
+        $nombres = implode(', ', array_map(fn ($l) => $listas[$l], $elegidas));
+        $res = self::resultado($columnas, $filas, array_keys($columnas), 'Precios finales con IVA incluido · ' . (count($elegidas) > 1 ? 'Listas: ' : 'Lista: ') . $nombres . ' · Vigentes al ' . fecha(hoy()));
+        $res['totales'] = null;
+        $res['grupo'] = 'rubro';
+        $res['titulo'] = count($elegidas) === 1 ? 'Lista de precios ' . $nombres : 'Lista de precios';
+        return $res;
     }
 
     /** Arma la respuesta estándar sumando las columnas numéricas (salvo las excluidas). */

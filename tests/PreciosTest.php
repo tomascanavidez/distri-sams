@@ -92,6 +92,22 @@ final class PreciosTest extends Prueba
         $this->lanza(fn () => PrecioService::configurarLista(3, -5, 1, false, 'x'), 'entre 0 y 1000');
     }
 
+    public function testListaDePreciosConListasElegidas(): void
+    {
+        $rubro = DB::insertar('rubros', ['nombre' => 'Rubro lista ' . uniqid(), 'activo' => 1]);
+        $p = $this->producto(100, 21, ['Caja' => 12]);
+        DB::query('UPDATE productos SET rubro_id = ? WHERE id = ?', [$rubro, $p]);
+        $unitario = PrecioService::precioLista($p, 2);
+        $res = \App\Support\Reportes::generar('lista_precios', ['rubro_id' => $rubro, 'listas' => ['2']]);
+        $this->igual(['codigo', 'descripcion', 'marca', 'rubro', 'presentacion', 'l2'], array_keys($res['columnas']), 'sólo la lista elegida');
+        $caja = array_values(array_filter($res['filas'], fn ($f) => str_starts_with($f['presentacion'], 'Caja')))[0];
+        $this->igual(round($unitario * 12, 2), $caja['l2'], 'precio de la caja = unitario × 12');
+        $this->igual(null, $res['totales'], 'sin totales');
+        $todas = \App\Support\Reportes::generar('lista_precios', ['rubro_id' => $rubro, 'presentaciones' => 'base']);
+        $this->igual((int) DB::valor('SELECT COUNT(*) FROM listas_precios WHERE activo = 1'), count(array_filter(array_keys($todas['columnas']), fn ($k) => $k[0] === 'l')), 'sin elegir se muestran todas');
+        $this->igual(1, count($todas['filas']), 'sólo por unidad: una fila por producto');
+    }
+
     public function testFijarMargenPorRubro(): void
     {
         $rubro = DB::insertar('rubros', ['nombre' => 'Rubro margen ' . uniqid(), 'activo' => 1]);
